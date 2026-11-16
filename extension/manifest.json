@@ -3,7 +3,7 @@
   "name": "Snippet Saver",
   "version": "0.1.0",
   "description": "Save text snippets with tags, search them, and paste them into any editable field.",
-  "minimum_chrome_version": "88",
+  "minimum_chrome_version": "102",
   "permissions": ["contextMenus", "storage", "unlimitedStorage", "activeTab", "scripting", "clipboardWrite"],
   "action": {
     "default_title": "Snippets",

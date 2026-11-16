@@ -1,12 +1,13 @@
 import { createStore, StoreError } from "../lib/store.js";
-import { filterSnippets, preview } from "../lib/filter.js";
 import { allTags, normalizeTags } from "../lib/tags.js";
 import { mountDataMenu } from "./data-menu.js";
 
 const $ = (id) => document.getElementById(id);
 const store = createStore(chrome.storage.local);
 
-let snippets = [];
+let metas = []; // metadata only: content is loaded on select
+let queued = null; // 'Add as snippet' text waiting for the editor to be free
+let listSeq = 0;
 let selectedId = null;
 let mode = "none"; // none | edit | new
 let addMode = false;
@@ -24,6 +25,10 @@ function showStatus(text, isError = false) {
   clearTimeout(statusTimer);
   statusTimer = setTimeout(() => (el.hidden = true), 4000);
 }
+function cancelConfirm() {
+  $("footConfirm").hidden = true;
+  $("footMain").hidden = false;
+}
 function askConfirm(text, noLabel, yesLabel, onYes, onNo) {
   $("confirmText").textContent = text;
   $("confirmNo").textContent = noLabel;
@@ -39,36 +44,41 @@ function askConfirm(text, noLabel, yesLabel, onYes, onNo) {
 }
 
 // ---------- list ----------
-function renderList() {
-  const shown = filterSnippets(snippets, { query: $("search").value, tag: $("tagFilter").value });
+async function renderList() {
+  const mine = ++listSeq;
+  const shown = await store.search({ query: $("search").value, tag: $("tagFilter").value });
+  if (mine !== listSeq) return;
   const ul = $("list");
   ul.replaceChildren();
-  for (const s of shown) {
+  for (const m of shown) {
     const li = document.createElement("li");
-    li.dataset.id = s.id;
-    if (s.id === selectedId && mode === "edit") li.classList.add("sel");
+    li.dataset.id = m.id;
     const n = document.createElement("div");
     n.className = "n";
-    n.textContent = s.name;
+    n.textContent = m.name;
     const p = document.createElement("div");
     p.className = "p";
-    p.textContent = preview(s.content);
+    p.textContent = m.preview;
     li.append(n, p);
     ul.append(li);
   }
+  markSelected();
+}
+function markSelected() {
+  for (const li of $("list").children) li.classList.toggle("sel", mode === "edit" && li.dataset.id === selectedId);
 }
 function renderTagFilter() {
   const sel = $("tagFilter");
   const cur = sel.value;
-  const list = allTags(snippets);
+  const list = allTags(metas);
   sel.replaceChildren(new Option("All tags", ""), ...list.map((t) => new Option(t, t)));
   sel.value = list.includes(cur) ? cur : "";
   $("tagList").replaceChildren(...list.map((t) => new Option(t)));
 }
 async function reload() {
-  snippets = await store.list();
+  metas = await store.listMeta();
   renderTagFilter();
-  renderList();
+  await renderList();
 }
 
 // ---------- editor ----------
@@ -92,7 +102,7 @@ function commitTagInput() {
   const input = $("tagInput");
   const parts = input.value.split(",");
   input.value = "";
-  tags = normalizeTags([...tags, ...parts], allTags(snippets));
+  tags = normalizeTags([...tags, ...parts], allTags(metas));
   renderChips();
 }
 function readForm() {
@@ -100,7 +110,7 @@ function readForm() {
   return {
     name: $("name").value,
     content: $("content").value,
-    tags: normalizeTags([...tags, ...pending], allTags(snippets)),
+    tags: normalizeTags([...tags, ...pending], allTags(metas)),
   };
 }
 function isDirty() {
@@ -110,6 +120,7 @@ function isDirty() {
     f.tags.join("\u0000") !== baseline.tags.join("\u0000");
 }
 function setEditor(m, snippet, { content = "" } = {}) {
+  cancelConfirm();
   mode = m;
   selectedId = snippet?.id ?? null;
   const show = m !== "none";
@@ -127,7 +138,7 @@ function setEditor(m, snippet, { content = "" } = {}) {
   $("copyBtn").disabled = !show;
   $("deleteBtn").disabled = m !== "edit";
   $("saveBtn").classList.toggle("primary", show);
-  renderList();
+  markSelected();
 }
 function guardUnsaved(proceed) {
   if (!isDirty()) return proceed();
@@ -138,15 +149,18 @@ function guardUnsaved(proceed) {
 $("list").addEventListener("click", (e) => {
   const li = e.target.closest("li");
   if (!li || li.dataset.id === selectedId) return;
-  guardUnsaved(() => {
-    const s = snippets.find((x) => x.id === li.dataset.id);
-    if (s) { endAddMode(); setEditor("edit", s); }
+  guardUnsaved(async () => {
+    queued = null;
+    const s = await store.get(li.dataset.id);
+    if (!s) { await reload(); return; }
+    endAddMode();
+    setEditor("edit", s);
   });
 });
-$("newBtn").onclick = () => guardUnsaved(() => { endAddMode(); setEditor("new", null); $("name").focus(); });
-$("search").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(renderList, 200); });
-$("tagFilter").addEventListener("change", renderList);
-$("closeBtn").onclick = () => guardUnsaved(() => window.close());
+$("newBtn").onclick = () => guardUnsaved(() => { queued = null; endAddMode(); setEditor("new", null); $("name").focus(); });
+$("search").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(() => renderList(), 200); });
+$("tagFilter").addEventListener("change", () => renderList());
+$("closeBtn").onclick = () => guardUnsaved(() => { queued = null; window.close(); });
 
 $("tagInput").addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commitTagInput(); }
@@ -161,11 +175,12 @@ $("saveBtn").onclick = async () => {
     const f = readForm();
     const saved = mode === "edit" ? await store.update(selectedId, f) : await store.add(f);
     await reload();
+    showStatus("Saved");
+    if (queued !== null) { startAdd(); return; }
     endAddMode();
     setEditor("edit", saved);
-    showStatus("Saved");
   } catch (err) {
-    if (!(err instanceof StoreError)) throw err;
+    if (!(err instanceof StoreError)) { showStatus(`Save failed: ${err?.message ?? err}`, true); return; }
     const msgs = {
       NAME_REQUIRED: ["nameErr", "Name is required"],
       DUPLICATE_NAME: ["nameErr", "A snippet with this name exists"],
@@ -181,6 +196,7 @@ $("deleteBtn").onclick = () => {
   askConfirm("Delete this snippet?", "Cancel", "Delete", async () => {
     await store.remove(selectedId);
     await reload();
+    if (queued !== null) { startAdd(); return; }
     endAddMode();
     setEditor("none", null);
   });
@@ -200,17 +216,23 @@ function endAddMode() {
   $("title").textContent = "Snippets";
   $("closeBtn").textContent = "Close";
 }
+function startAdd() {
+  const content = queued ?? "";
+  queued = null;
+  addMode = true;
+  $("title").textContent = "Add snippet";
+  $("closeBtn").textContent = "Cancel";
+  setEditor("new", null, { content });
+  $("name").focus();
+}
 async function applyPendingNew() {
   const { pendingNew } = await chrome.storage.session.get("pendingNew");
   if (!pendingNew) return;
   await chrome.storage.session.remove("pendingNew");
-  guardUnsaved(() => {
-    addMode = true;
-    $("title").textContent = "Add snippet";
-    $("closeBtn").textContent = "Cancel";
-    setEditor("new", null, { content: pendingNew.content ?? "" });
-    $("name").focus();
-  });
+  queued = pendingNew.content ?? "";
+  if (!isDirty()) { startAdd(); return; }
+  askConfirm("Unsaved changes. Add selected text?", "Keep editing", "Discard", startAdd,
+    () => showStatus("Selected text kept: save or discard to add it"));
 }
 chrome.storage.session.onChanged.addListener((c) => { if (c.pendingNew?.newValue) applyPendingNew(); });
 chrome.storage.onChanged.addListener((_c, area) => { if (area === "local") reload(); });

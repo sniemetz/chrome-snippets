@@ -39,3 +39,7 @@ for (const size of [16, 32, 48, 128]) {
     assert.equal(buf.readUInt32BE(20), size);
   });
 }
+
+test("minimum Chrome is 102 or higher (chrome.storage.session)", () => {
+  assert.ok(Number(manifest().minimum_chrome_version) >= 102);
+});

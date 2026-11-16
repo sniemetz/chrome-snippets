@@ -29,7 +29,7 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 
 | # | Topic | Decision |
 |---|---|---|
-| 1 | Storage | `chrome.storage.local` with `unlimitedStorage`. Behind one module `lib/store.js` so a backend can change later. |
+| 1 | Storage | `chrome.storage.local` with `unlimitedStorage`. Split keys: `meta` (array of id, name, tags, preview, created, modified) + one `c:<id>` key per content. Content is read only to edit, paste or search (and for Export). Behind one module `lib/store.js`. |
 | 2 | Tags | `tags: string[]`. Chips input with autocomplete (`<datalist>` or equivalent) from existing tags. Tag list derived from snippets, no registry. Case-insensitive match on save reuses the existing spelling. |
 | 3 | Paste flyout | In-page overlay built with `scripting.executeScript` and Shadow DOM. Permission `activeTab`. Not available on restricted pages (`chrome://`, Web Store). |
 | 4 | Menu items | "Paste snippet": `contexts: ["editable"]`. "Add as snippet": `contexts: ["selection"]`. "Open Snippets": `contexts: ["all"]`. Selection inside a field shows both Add and Paste. Paste over a selection replaces it. |
@@ -72,6 +72,7 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 ### 5.3 Paste palette (mockup `snippets_rightclick_no_selection.png`)
 - Search box (focused), list of snippets (name + preview).
 - Arrow keys move, Enter or click inserts, Esc closes.
+- Opens with names, tags and 60-char previews only. Typing asks the service worker to search (name, tags, content). Picking fetches that one snippet's content.
 
 ## 6. Data model
 
@@ -79,7 +80,7 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 { "id": "uuid", "name": "string", "content": "string", "tags": ["string"], "created": 0, "modified": 0 }
 ```
 
-- `storage.local` key `snippets`: plain array (decided 2026-11-16).
+- Stored split (decided 2026-11-16, for libraries of ~400 snippets of up to 200 kB): `meta` = `[{ id, name, tags, preview, created, modified }]`, `c:<id>` = content. The export format (decision 9) is unchanged.
 
 ## 7. Structure
 
@@ -95,7 +96,7 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 - After changes to `background/` or `lib/` used by the service worker: reload the extension on `chrome://extensions`.
 - The Chrome tool cannot open `chrome://` pages.
 - Incognito: off until the user enables it. Note in README.
-- Min Chrome: MV3 (88 or later).
+- Min Chrome: 102 (`chrome.storage.session`).
 
 ## 9. Open points for the plan
 

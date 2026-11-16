@@ -29,7 +29,8 @@ No default keys. Bind them at `chrome://extensions/shortcuts`:
 
 ## Notes
 
-- Minimum Chrome: 88 (Manifest V3).
+- Minimum Chrome: 102 (Manifest V3, `chrome.storage.session`).
+- Large libraries: the list and the palette only load names, tags and a 60-char preview. Full content is read to edit, paste or search a snippet. Export reads everything.
 - Incognito: off until you enable it for this extension on `chrome://extensions`.
 - The palette cannot open on restricted pages (`chrome://`, Chrome Web Store).
 - After you change files in `extension/background/` or `extension/lib/`, reload the extension on `chrome://extensions`.

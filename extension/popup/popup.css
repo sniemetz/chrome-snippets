@@ -55,7 +55,7 @@ button.primary { background: var(--accent); color: var(--accent-fg); border-colo
 #footMain { justify-content: space-between; }
 .row.confirm span { margin-right: auto; }
 .row[hidden] { display: none; }
-.menu { position: absolute; right: 70px; top: 38px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; z-index: 10; }
+.menu { position: absolute; right: 0; top: 30px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; z-index: 10; }
 .menu button { border: 0; border-radius: 0; text-align: left; }
 .menu[hidden] { display: none; }
 #dataMount { position: relative; }

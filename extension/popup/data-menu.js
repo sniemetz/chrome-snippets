@@ -53,6 +53,7 @@ export function mountDataMenu(root, store, { onStatus }) {
   }
 
   function pick(kind) {
+    close();
     purpose = kind;
     file.value = "";
     file.click();
@@ -65,12 +66,12 @@ export function mountDataMenu(root, store, { onStatus }) {
     if (!parsed.ok) { close(); onStatus(parsed.error, true); return; }
     if (purpose === "import") {
       close();
-      const existing = await store.list();
+      const existing = await store.listMeta(); // names and tags only: no content is read
       const r = mergeAdditive(existing, parsed.snippets, opts());
-      await store.replaceAll(r.snippets);
+      await store.addMany(r.snippets.slice(existing.length));
       onStatus(statusLine(r.added, r.skipped));
     } else {
-      const current = (await store.list()).length;
+      const current = (await store.listMeta()).length;
       const text = document.createElement("div");
       text.textContent = `Replace ${current} snippets with ${parsed.snippets.length} from file?`;
       const row = document.createElement("div");
