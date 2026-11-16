@@ -1,5 +1,6 @@
 import { createStore } from "../lib/store.js";
 import { openPalette } from "../lib/overlay.js";
+import { handleMessage } from "../lib/messages.js";
 
 const store = createStore(chrome.storage.local);
 const MANAGER_URL = "popup/popup.html";
@@ -19,7 +20,7 @@ async function injectPalette(tabId, frameIds) {
     await chrome.scripting.executeScript({
       target: { tabId, frameIds },
       func: openPalette,
-      args: [await store.list()],
+      args: [await store.listMeta()],
     });
   } catch (err) {
     // Restricted pages (chrome://, Web Store) refuse injection: nothing to show.
@@ -62,4 +63,11 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "open-palette") return;
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (tab?.id !== undefined) await injectPalette(tab.id, [0]);
+});
+
+// Palette (injected into pages) asks for search results and for one snippet body at a time.
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id) return false;
+  handleMessage(store, msg).then(sendResponse, () => sendResponse(undefined));
+  return true;
 });
