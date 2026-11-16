@@ -79,7 +79,7 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 { "id": "uuid", "name": "string", "content": "string", "tags": ["string"], "created": 0, "modified": 0 }
 ```
 
-- `storage.local` key `snippets`: array or id map (decide in the plan).
+- `storage.local` key `snippets`: plain array (decided 2026-11-16).
 
 ## 7. Structure
 
@@ -99,5 +99,5 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 
 ## 9. Open points for the plan
 
-- Storage shape (array or id map).
-- Verify `execCommand('insertText')` on `input`, `textarea`, `contenteditable`, and iframes (`frameId` from the menu click).
+- ~~Storage shape~~: decided, plain array.
+- OPEN, manual check pending: verify `execCommand('insertText')` on `input`, `textarea`, `contenteditable`, and iframes (`frameId` from the menu click).
