@@ -14,7 +14,7 @@
 
 - Permissions exactly: `contextMenus`, `storage`, `unlimitedStorage`, `activeTab`, `scripting`, `clipboardWrite`. No host permissions. No content scripts.
 - Manager size fixed 600 x 445 px, layout never moves (#5, 5.1).
-- Storage key `snippets` in `chrome.storage.local`, a **plain array** (user decision, 2026-11-16). All access through `lib/store.js` (#1).
+- Storage in `chrome.storage.local` is **split** (user decision, 2026-11-16, reversing the earlier plain-array choice because of large snippets): key `meta` = array of `{id,name,tags,preview,created,modified}`; one key `c:<id>` per snippet content. All access through `lib/store.js` (#1). The page (palette) and the manager list never load all content.
 - Snippet shape: `{ id, name, content, tags: string[], created, modified }`; times are epoch ms (6).
 - Names: required, unique case-insensitive, no overwrite; content required; no max length (#6).
 - List order: name, case-insensitive; row = name + first 60 chars of content, newlines as spaces (#8).
@@ -279,3 +279,14 @@ Layout per spec 5.1 and `docs/mockup/snippets_main.png`: top bar (title, search,
 - Spec coverage: #1 T4; #2 T2; #3, #14, #15 T8/T9; #4 T9; #5 T6/T9; #6 T4; #7, #8 T3; #9–#12 T5/T7; #13 T1/T9; #16 T6; #17 T9/T6; #18 T6; #19 T1; #20 T10. 5.2 in T6/T9; 5.3 in T8.
 - Types: `createStore`, `StoreError`, `normalizeTags`, `allTags`, `filterSnippets`, `preview`, `parseFile`, `mergeAdditive`, `restoreList`, `statusLine`, `openPalette` used consistently.
 - Known weak point: overlay DOM behavior and menu/window behavior are manual-check only (spec 8: user does UI checks).
+
+---
+
+### Task 11 (added after Task 10): large-library redesign
+
+Reason: user expects ~400 snippets, some 50-200 kB. Sending all content to pages and loading it in the popup does not scale.
+
+- `store.js`: split keys; add `listMeta()`, `search({query, tag})` (name/tags from meta, content scanned in chunks of 25 keys, nothing held), `get(id)` full; `list()` stays full (export only). `add`/`update` return full snippet.
+- Palette: SW sends `{id,name,tags,preview}[]` on open; typing sends `{type:"snippet-search", query}` to the SW; pick sends `{type:"snippet-content", id}`.
+- Manager: list from `listMeta`/`search`; full snippet loaded by `get(id)` on select. Import merges against `listMeta()`, appends with `addMany`.
+- Review fixes (Chrome min 102; overlay test no longer vacuous; shadow-DOM active element; pending confirm reset; "Add as snippet" content kept on "Keep editing"; Save error status; menu position; palette small guards).
