@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Snippet Saver",
+  "version": "0.1.0",
+  "description": "Save text snippets with tags, search them, and paste them into any editable field.",
+  "minimum_chrome_version": "88",
+  "permissions": ["contextMenus", "storage", "unlimitedStorage", "activeTab", "scripting", "clipboardWrite"],
+  "action": {
+    "default_title": "Snippets",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": { "service_worker": "background/sw.js", "type": "module" },
+  "commands": {
+    "_execute_action": { "description": "Open Snippets" },
+    "open-palette": { "description": "Open paste palette" }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
