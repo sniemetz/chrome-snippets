@@ -1,6 +1,8 @@
-// Injected into pages with scripting.executeScript({ func: openPalette, args: [snippets] }).
+// Injected into pages with scripting.executeScript({ func: openPalette, args: [metas] }).
 // MUST stay self-contained: no imports, no references to module scope.
-export function openPalette(snippets) {
+// `metas` = [{ id, name, tags, preview }]. Content is never sent to the page up front:
+// searching asks the service worker ("snippet-search"), picking fetches one body ("snippet-content").
+export function openPalette(metas) {
   const HOST_ID = "__snippet_saver_palette__";
   if (document.getElementById(HOST_ID)) return;
 
@@ -11,7 +13,8 @@ export function openPalette(snippets) {
   const readValue = (el) => (isTextField(el) ? el.value : el.textContent);
 
   // Save target field, caret and selection before focus moves to the palette.
-  const target = document.activeElement;
+  let target = document.activeElement;
+  while (target && target.shadowRoot && target.shadowRoot.activeElement) target = target.shadowRoot.activeElement;
   let saved = null;
   if (isTextField(target)) {
     saved = { start: target.selectionStart, end: target.selectionEnd };
@@ -19,10 +22,6 @@ export function openPalette(snippets) {
     const sel = window.getSelection();
     if (sel && sel.rangeCount) saved = { range: sel.getRangeAt(0).cloneRange() };
   }
-
-  const lc = (s) => s.toLowerCase();
-  const sorted = [...snippets].sort((a, b) => lc(a.name).localeCompare(lc(b.name)));
-  const preview = (c) => c.replace(/\r\n|\r|\n/g, " ").slice(0, 60);
 
   function toast(text) {
     const h = document.createElement("div");
@@ -69,7 +68,7 @@ export function openPalette(snippets) {
           const sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(saved.range);
-        } else if (saved && isTextField(target) && target.setSelectionRange) {
+        } else if (saved && isTextField(target) && target.setSelectionRange && saved.start != null) {
           target.setSelectionRange(saved.start, saved.end);
         }
         const before = readValue(target);
@@ -117,52 +116,69 @@ export function openPalette(snippets) {
   bd.append(panel);
   root.append(style, bd);
 
-  let shown = sorted;
+  let shown = metas;
   let idx = 0;
+  let seq = 0;
   function render() {
-    const q = lc(input.value);
-    shown = q
-      ? sorted.filter((s) => lc(s.name).includes(q) || lc(s.content).includes(q) || s.tags.some((t) => lc(t).includes(q)))
-      : sorted;
     if (idx >= shown.length) idx = Math.max(0, shown.length - 1);
     ul.replaceChildren();
     if (!shown.length) {
       const e = document.createElement("li");
       e.className = "e";
-      e.textContent = snippets.length ? "No matches" : "No snippets yet";
+      e.textContent = input.value ? "No matches" : "No snippets yet";
       ul.append(e);
       return;
     }
-    shown.forEach((s, i) => {
+    shown.forEach((m, i) => {
       const li = document.createElement("li");
       if (i === idx) li.className = "sel";
       const n = document.createElement("div");
       n.className = "n";
-      n.textContent = s.name;
+      n.textContent = m.name;
       const p = document.createElement("div");
       p.className = "pv";
-      p.textContent = preview(s.content);
+      p.textContent = m.preview;
       li.append(n, p);
-      li.addEventListener("click", () => choose(s));
+      li.addEventListener("click", () => choose(m));
       ul.append(li);
     });
     const sel = ul.querySelector(".sel");
     if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: "nearest" });
   }
 
+  let timer = null;
+  function search() {
+    const mine = ++seq;
+    chrome.runtime.sendMessage({ type: "snippet-search", query: input.value }).then(
+      (res) => {
+        if (mine !== seq || !host.isConnected || !res) return;
+        shown = res.metas || [];
+        idx = 0;
+        render();
+      },
+      () => {},
+    );
+  }
+
   function close() {
     host.remove();
     if (target && target.isConnected && target.focus) target.focus();
   }
-  function choose(s) {
+  function choose(m) {
     host.remove();
-    insert(s.content);
+    chrome.runtime.sendMessage({ type: "snippet-content", id: m.id }).then(
+      (res) => {
+        if (res && typeof res.content === "string") insert(res.content);
+        else toast("Snippet not found");
+      },
+      () => toast("Snippet unavailable"),
+    );
   }
 
-  input.addEventListener("input", () => { idx = 0; render(); });
+  input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 150); });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { e.preventDefault(); close(); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); idx = Math.min(idx + 1, shown.length - 1); render(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); idx = Math.max(0, Math.min(idx + 1, shown.length - 1)); render(); }
     else if (e.key === "ArrowUp") { e.preventDefault(); idx = Math.max(idx - 1, 0); render(); }
     else if (e.key === "Enter") { e.preventDefault(); if (shown[idx]) choose(shown[idx]); }
     else if (e.key === "Tab") { e.preventDefault(); }
