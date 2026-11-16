@@ -47,7 +47,7 @@ export function createStore(
   }
 
   return {
-    listMeta: readMeta,
+    listMeta: async () => sortSnippets(await readMeta()),
 
     // Full snippets. Reads ALL content: used only by Export.
     async list() {

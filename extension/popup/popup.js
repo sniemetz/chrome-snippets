@@ -150,14 +150,14 @@ $("list").addEventListener("click", (e) => {
   const li = e.target.closest("li");
   if (!li || li.dataset.id === selectedId) return;
   guardUnsaved(async () => {
-    queued = null;
+    dropQueued();
     const s = await store.get(li.dataset.id);
     if (!s) { await reload(); return; }
     endAddMode();
     setEditor("edit", s);
   });
 });
-$("newBtn").onclick = () => guardUnsaved(() => { queued = null; endAddMode(); setEditor("new", null); $("name").focus(); });
+$("newBtn").onclick = () => guardUnsaved(() => { dropQueued(); endAddMode(); setEditor("new", null); $("name").focus(); });
 $("search").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(() => renderList(), 200); });
 $("tagFilter").addEventListener("change", () => renderList());
 $("closeBtn").onclick = () => guardUnsaved(() => { queued = null; window.close(); });
@@ -215,6 +215,10 @@ function endAddMode() {
   addMode = false;
   $("title").textContent = "Snippets";
   $("closeBtn").textContent = "Close";
+}
+function dropQueued() {
+  if (queued !== null) showStatus("Selected text discarded", true);
+  queued = null;
 }
 function startAdd() {
   const content = queued ?? "";

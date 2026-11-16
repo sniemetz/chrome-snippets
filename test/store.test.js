@@ -150,3 +150,9 @@ test("search reads content in bounded chunks (max 25 keys per read), only for no
   const read = contentKeysRead(area).length;
   assert.ok(read < 60, `read ${read} content keys`);
 });
+
+test("listMeta is sorted by name case-insensitively (palette opens in manager order)", async () => {
+  const { store } = setup();
+  for (const n of ["b", "C", "a"]) await store.add({ name: n, content: "x", tags: [] });
+  assert.deepEqual((await store.listMeta()).map((m) => m.name), ["a", "b", "C"]);
+});
