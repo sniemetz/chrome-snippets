@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Snippets</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header class="bar">
+  <h1 id="title">Snippets</h1>
+  <input id="search" type="search" placeholder="Search" autocomplete="off">
+  <select id="tagFilter" aria-label="Filter by tag"><option value="">All tags</option></select>
+  <div id="dataMount"></div>
+  <button id="closeBtn" type="button">Close</button>
+</header>
+<div id="status" class="status" role="status" hidden></div>
+<main class="main">
+  <aside class="left">
+    <button id="newBtn" type="button" class="wide">New</button>
+    <ul id="list" class="list"></ul>
+  </aside>
+  <section class="right">
+    <p id="placeholder" class="placeholder">Select a snippet or click New</p>
+    <form id="editor" hidden autocomplete="off">
+      <label>Name <input id="name" type="text"></label>
+      <div id="nameErr" class="err" hidden></div>
+      <label>Tags
+        <div id="chips" class="chips"><input id="tagInput" type="text" list="tagList" placeholder="Add tag, press Enter"></div>
+      </label>
+      <datalist id="tagList"></datalist>
+      <label class="grow">Content <textarea id="content"></textarea></label>
+      <div id="contentErr" class="err" hidden></div>
+    </form>
+  </section>
+</main>
+<footer class="foot">
+  <div id="footMain" class="row">
+    <button id="deleteBtn" type="button" disabled>Delete</button>
+    <button id="copyBtn" type="button" disabled>Copy</button>
+    <button id="saveBtn" type="button" disabled>Save</button>
+  </div>
+  <div id="footConfirm" class="row confirm" hidden>
+    <span id="confirmText"></span>
+    <button id="confirmNo" type="button"></button>
+    <button id="confirmYes" type="button"></button>
+  </div>
+</footer>
+<script type="module" src="popup.js"></script>
+</body>
+</html>
