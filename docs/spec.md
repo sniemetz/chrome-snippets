@@ -19,7 +19,7 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 
 ### Backlog (not in v1)
 - Cloud sync. Preferred path: Drive via `identity` + `drive.file` scope. Open point: no native folder picker; Google Picker needs a sandboxed or hosted page. Local storage stays the source of truth. Other options checked: `storage.sync` (102,400 B total, 8,192 B per item: too small), `bookmarks` (permission warning, unverified size limits), File System Access (no official Drive client on Linux).
-- Tag registry and options page (configured tag dropdown, rename, delete).
+- Tag registry and options page (configured tag dropdown). A simple tag manager (rename, delete) is done in the window view.
 - CSV export/import.
 - Most-recently-used ordering (needs `lastUsed` field).
 - Palette at click point (needs broad content script; permission warning).
@@ -31,9 +31,9 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 |---|---|---|
 | 1 | Storage | `chrome.storage.local` with `unlimitedStorage`. Split keys: `meta` (array of id, name, tags, preview, created, modified) + one `c:<id>` key per content. Content is read only to edit, paste or search (and for Export). Behind one module `lib/store.js`. |
 | 2 | Tags | `tags: string[]`. Chips input with autocomplete (`<datalist>` or equivalent) from existing tags. Tag list derived from snippets, no registry. Case-insensitive match on save reuses the existing spelling. |
-| 3 | Paste flyout | In-page overlay built with `scripting.executeScript` and Shadow DOM. Permission `activeTab`. Not available on restricted pages (`chrome://`, Web Store). |
+| 3 | Paste flyout | In-page overlay built with `scripting.executeScript` and Shadow DOM. Permission `activeTab`. Not available on restricted pages (`chrome://`, Web Store), the Chrome location bar or DevTools panels (extension menus do not appear there). In a cross-origin iframe without host permission the palette opens on the top page instead and picking copies ("Copied. Press Ctrl+V"); with the opt-in site permission it inserts directly. Failures flash a `!` badge on the toolbar icon. |
 | 4 | Menu items | "Paste snippet": `contexts: ["editable"]`. "Add as snippet": `contexts: ["selection"]`. "Open Snippets": `contexts: ["all"]`. Selection inside a field shows both Add and Paste. Paste over a selection replaces it. |
-| 5 | Manager surface | `chrome.windows.create({type: "popup"})`, about 600 x 445 px, same HTML page as the toolbar popup. Selection passed via storage or URL parameter. Toolbar icon uses `default_popup` (same page). |
+| 5 | Manager surface | `chrome.windows.create({type: "popup"})`, about 600 x 445 px, same HTML page as the toolbar popup but a different view (`?view=window`; see 5.1). Selection passed via `storage.session` (`pendingNew`). Toolbar icon uses `default_popup` (list-only view). |
 | 6 | Name rules | Name required. Unique, case-insensitive. Inline error on duplicate, no overwrite. Content required. No max length. |
 | 7 | Search | Case-insensitive substring on name, content, tags. 200 ms debounce. No minimum length. Tag dropdown filter in manager combines with search (AND). |
 | 8 | List | Alphabetical by name, case-insensitive. Row = name + first 60 chars of content, newlines as spaces. Palette uses the same order. |
@@ -52,18 +52,25 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 
 ## 4. Permissions
 
-`contextMenus`, `storage`, `unlimitedStorage`, `activeTab`, `scripting`, `clipboardWrite`. No host permissions. No content scripts.
+`contextMenus`, `storage`, `unlimitedStorage`, `activeTab`, `scripting`, `clipboardWrite`. No required host permissions, no install warning. No content scripts.
+
+Optional (opt-in per site, `optional_host_permissions`: `https://*/*`, `http://*/*`): requested at runtime for one origin through the menu item "Allow Snippets on this site". Needed to insert into a cross-origin iframe (UI rework, 2026-11-17: Workfront inside an Adobe wrapper). Remove a granted site at `chrome://extensions` > Snippet Saver > Details > Site access.
 
 ## 5. UI
 
-### 5.1 Manager (mockup `snippets_main.png`, with deltas)
-- Top bar: title, search box, tag filter dropdown, Data menu, Close.
-- Left column: "New" button, snippet list (name + preview).
-- Right pane (editable): Name input, tag chips input, Content textarea.
-- Bottom buttons: Delete, Copy (content to clipboard), Save.
-- Delete: inline confirmation, no `confirm()` dialog.
-- Fixed size, about 600 x 445 px, for toolbar popup and popup window. Layout never moves.
-- Right pane content hidden until a snippet or "New" is selected. Placeholder text: "Select a snippet or click New". (User-confirmed.)
+### 5.1 Manager (mockup `snippets_main.png`, with deltas; reworked 2026-11-17)
+Two views of the same page (`popup/popup.html`):
+- **Window view** (`?view=window`, opened by "Open Snippets", "Add as snippet" and the toolbar popup's "Open manager" button), fixed 600 x 445 px content. Layout never moves.
+- **Toolbar popup** (no parameter, 360 x 445 px): list only (search, tag filter, list, "Open manager"). A click on a row copies the content, shows "Copied!" and closes the popup.
+
+Window view layout:
+- Top bar: title, search box, tag filter dropdown, Close.
+- Left wrapper: snippet list (name + preview) with New and Delete under it. The name is underlined: a click copies the content and shows "Copied!" in place of the name; a click on the rest of the row selects the snippet.
+- Right wrapper (editable; same border/radius/padding as the left): Name, tag chips, "Content" label with a "Copy content" link (copies the text area's current text, same "Copied!" feedback), text area, Save under the text area.
+- Save is disabled until name, tags or content differ from what was loaded (New mode: enabled once anything is typed; prefilled "Add as snippet" is enabled).
+- Footer (below the wrappers): Data menu (opens upward) and Tags buttons on the left; inline confirmations (Delete, unsaved changes) on the right. No `confirm()` dialog.
+- Tag manager (footer "Tags", opens in the right wrapper): every tag with its snippet count; Rename (merges into an existing tag, case-insensitive, existing spelling wins; case-only change allowed) and Delete (inline confirm), applied to all snippets. Reads and writes metadata only.
+- Right wrapper content hidden until a snippet or "New" is selected. Placeholder text: "Select a snippet or click New". (User-confirmed.)
 
 ### 5.2 Add as snippet (mockup `snippets_rightclick_selection.png`)
 - Opens the manager with an empty "New" form. Content = selection. Cursor in Name.

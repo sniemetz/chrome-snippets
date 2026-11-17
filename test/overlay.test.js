@@ -31,17 +31,18 @@ class FakeEl {
   }
 }
 
-function env({ search = () => ({ metas: [] }), content = () => ({ content: "BODY" }) } = {}) {
+function env({ search = () => ({ metas: [] }), content = () => ({ content: "BODY" }), focused = null } = {}) {
   const created = [];
   const messages = [];
   const copied = [];
+  const execCalls = [];
   const doc = {
-    activeElement: null,
+    activeElement: focused,
     createElement: (t) => { const e = new FakeEl(t); created.push(e); return e; },
     getElementById: () => null,
     documentElement: new FakeEl("html"),
     body: new FakeEl("body"),
-    execCommand: () => false,
+    execCommand: (...a) => { execCalls.push(a); return false; },
   };
   const chromeFake = {
     runtime: {
@@ -59,7 +60,7 @@ function env({ search = () => ({ metas: [] }), content = () => ({ content: "BODY
   const restore = () => {
     for (const k of Object.keys(g)) if (saved[k]) Object.defineProperty(globalThis, k, saved[k]); else delete globalThis[k];
   };
-  return { doc, created, messages, copied, restore };
+  return { doc, created, messages, copied, execCalls, restore };
 }
 const run = (fn, ...a) => new Function("return " + fn.toString())()(...a); // detached: no module scope
 const meta = (id, name) => ({ id, name, tags: [], preview: `${name} preview` });
@@ -116,5 +117,33 @@ test("the page never receives snippet content on open (only id, name, tags, prev
   try {
     run(openPalette, [{ ...meta("1", "a"), content: "SECRET" }]);
     assert.ok(!e.created.some((x) => x.textContent.includes("SECRET")));
+  } finally { e.restore(); }
+});
+
+test("copyOnly: picking a snippet never inserts into the focused field, it copies", async () => {
+  const field = new FakeEl("textarea");
+  field.selectionStart = 0;
+  field.selectionEnd = 0;
+  const e = env({ focused: field, content: () => ({ content: "BODY" }) });
+  try {
+    run(openPalette, [meta("7", "seven")], { copyOnly: true });
+    rows(e)[0].fire("click");
+    await wait(50);
+    assert.deepEqual(e.execCalls, []);
+    assert.deepEqual(e.copied, ["BODY"]);
+  } finally { e.restore(); }
+});
+test("without copyOnly, a focused text field gets an insert attempt", async () => {
+  const field = new FakeEl("textarea");
+  field.selectionStart = 0;
+  field.selectionEnd = 0;
+  field.isConnected = true;
+  const e = env({ focused: field, content: () => ({ content: "BODY" }) });
+  try {
+    run(openPalette, [meta("7", "seven")]);
+    rows(e)[0].fire("click");
+    await wait(50);
+    assert.equal(e.execCalls.length, 1);
+    assert.deepEqual(e.execCalls[0], ["insertText", false, "BODY"]);
   } finally { e.restore(); }
 });

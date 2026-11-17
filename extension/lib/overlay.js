@@ -2,7 +2,9 @@
 // MUST stay self-contained: no imports, no references to module scope.
 // `metas` = [{ id, name, tags, preview }]. Content is never sent to the page up front:
 // searching asks the service worker ("snippet-search"), picking fetches one body ("snippet-content").
-export function openPalette(metas) {
+export function openPalette(metas, options) {
+  // copyOnly: used when the page's frame refused injection; picking copies instead of inserting.
+  const copyOnly = !!(options && options.copyOnly);
   const HOST_ID = "__snippet_saver_palette__";
   if (document.getElementById(HOST_ID)) return;
 
@@ -61,7 +63,7 @@ export function openPalette(metas) {
 
   function insert(content) {
     let ok = false;
-    if (isEditable(target) && target.isConnected) {
+    if (!copyOnly && isEditable(target) && target.isConnected) {
       try {
         target.focus();
         if (saved && saved.range) {

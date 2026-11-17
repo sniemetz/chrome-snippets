@@ -5,6 +5,7 @@
   "description": "Save text snippets with tags, search them, and paste them into any editable field.",
   "minimum_chrome_version": "102",
   "permissions": ["contextMenus", "storage", "unlimitedStorage", "activeTab", "scripting", "clipboardWrite"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
   "action": {
     "default_title": "Snippets",
     "default_popup": "popup/popup.html",

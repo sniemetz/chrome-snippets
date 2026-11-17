@@ -43,3 +43,9 @@ for (const size of [16, 32, 48, 128]) {
 test("minimum Chrome is 102 or higher (chrome.storage.session)", () => {
   assert.ok(Number(manifest().minimum_chrome_version) >= 102);
 });
+
+test("optional host permissions for http(s) only; no required host permissions", () => {
+  const m = manifest();
+  assert.equal(m.host_permissions, undefined);
+  assert.deepEqual(m.optional_host_permissions, ["https://*/*", "http://*/*"]);
+});
