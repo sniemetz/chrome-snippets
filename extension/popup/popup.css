@@ -76,3 +76,11 @@ body[data-view="toolbar"] #title { display: none; }
 body[data-view="toolbar"] .left { width: auto; flex: 1; }
 body[data-view="toolbar"] .main { padding-bottom: 10px; }
 body[data-view="window"] #openMgrBtn { display: none; }
+
+.tagspanel { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; flex: 1; }
+.tagspanel[hidden] { display: none; }
+.tagspanel h2 { font-size: 13px; margin: 0; }
+.taglist { list-style: none; margin: 0; padding: 0; }
+.taglist li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.taglist .tname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.taglist input { flex: 1; min-width: 0; padding: 2px 4px; }

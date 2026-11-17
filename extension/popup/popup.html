@@ -24,6 +24,7 @@
   </aside>
   <section class="right wrap">
     <p id="placeholder" class="placeholder">Select a snippet or click New</p>
+    <div id="tagsPanel" class="tagspanel" hidden></div>
     <form id="editor" hidden autocomplete="off">
       <label>Name <input id="name" type="text"></label>
       <div id="nameErr" class="err" hidden></div>
@@ -44,7 +45,7 @@
   </section>
 </main>
 <footer class="foot">
-  <div class="row"><div id="dataMount"></div></div>
+  <div class="row"><div id="dataMount"></div><button id="tagsBtn" type="button">Tags</button></div>
   <div id="footConfirm" class="row confirm" hidden>
     <span id="confirmText"></span>
     <button id="confirmNo" type="button"></button>

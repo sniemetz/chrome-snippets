@@ -4,6 +4,7 @@ import { formsEqual } from "../lib/dirty.js";
 import { viewFromSearch } from "../lib/view.js";
 import { mountDataMenu } from "./data-menu.js";
 import { copyWithFeedback, copyTextWithFeedback } from "./copy.js";
+import { mountTagsPanel } from "./tags-panel.js";
 
 const $ = (id) => document.getElementById(id);
 const view = viewFromSearch(location.search);
@@ -122,6 +123,7 @@ function updateSaveState() {
 }
 function setEditor(m, snippet, { content = "" } = {}) {
   cancelConfirm();
+  $("tagsPanel").hidden = true;
   mode = m;
   selectedId = snippet?.id ?? null;
   const show = m !== "none";
@@ -246,6 +248,16 @@ if (view === "window") {
   chrome.storage.session.onChanged.addListener((c) => { if (c.pendingNew?.newValue) applyPendingNew(); });
 }
 chrome.storage.onChanged.addListener((_c, area) => { if (area === "local") reload(); });
+let tagsPanel = null;
+function showTagsPanel() {
+  dropQueued();
+  endAddMode();
+  setEditor("none", null);
+  $("placeholder").hidden = true;
+  $("tagsPanel").hidden = false;
+  tagsPanel.render();
+}
+$("tagsBtn").onclick = () => guardUnsaved(showTagsPanel);
 $("openMgrBtn").onclick = async () => {
   try { await chrome.runtime.sendMessage({ type: "open-manager" }); } catch { /* window opens anyway or not */ }
   window.close();
@@ -255,6 +267,7 @@ $("openMgrBtn").onclick = async () => {
 await reload();
 if (view === "window") {
   mountDataMenu($("dataMount"), store, { onStatus: (t, isErr) => showStatus(t, isErr) });
+  tagsPanel = mountTagsPanel($("tagsPanel"), store, { onChanged: reload });
   setEditor("none", null);
   await applyPendingNew(); // only the window consumes "Add as snippet" text
 }

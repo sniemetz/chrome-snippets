@@ -19,3 +19,20 @@ export function allTags(snippets) {
   for (const s of snippets) for (const t of s.tags) if (!map.has(key(t))) map.set(key(t), t);
   return [...map.values()].sort((a, b) => key(a).localeCompare(key(b)));
 }
+
+// [{ tag, count }] sorted case-insensitively; count = snippets that carry the tag.
+export function tagCounts(snippets) {
+  const map = new Map();
+  for (const s of snippets) {
+    const seen = new Set();
+    for (const t of s.tags) {
+      const k = key(t);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const e = map.get(k);
+      if (e) e.count++;
+      else map.set(k, { tag: t, count: 1 });
+    }
+  }
+  return [...map.values()].sort((a, b) => key(a.tag).localeCompare(key(b.tag)));
+}

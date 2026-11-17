@@ -14,3 +14,11 @@ test("normalizeTags dedupes case-insensitively, first wins", () => {
 test("allTags is unique, sorted case-insensitively, first-seen spelling", () => {
   assert.deepEqual(allTags([{ tags: ["b", "A"] }, { tags: ["a"] }]), ["A", "b"]);
 });
+
+import { tagCounts } from "../extension/lib/tags.js";
+
+test("tagCounts counts snippets per tag case-insensitively, sorted, first-seen spelling", () => {
+  const metas = [{ tags: ["b", "A"] }, { tags: ["a"] }, { tags: [] }];
+  assert.deepEqual(tagCounts(metas), [{ tag: "A", count: 2 }, { tag: "b", count: 1 }]);
+});
+test("tagCounts of no snippets is empty", () => assert.deepEqual(tagCounts([]), []));
