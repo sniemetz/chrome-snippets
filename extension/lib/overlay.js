@@ -59,6 +59,8 @@ export function openPalette(metas, options) {
       }
     }
     toast(ok ? "Copied. Press Ctrl+V" : "Copy failed");
+    // The palette held focus; give it back so Ctrl+V lands in the field (or iframe) the user was in.
+    if (target && target.isConnected && target.focus) target.focus();
   }
 
   function insert(content) {

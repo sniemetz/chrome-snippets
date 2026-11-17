@@ -147,3 +147,18 @@ test("without copyOnly, a focused text field gets an insert attempt", async () =
     assert.deepEqual(e.execCalls[0], ["insertText", false, "BODY"]);
   } finally { e.restore(); }
 });
+
+test("after copying (copyOnly), focus returns to the field/iframe so Ctrl+V lands there", async () => {
+  const field = new FakeEl("iframe");
+  let focused = 0;
+  field.focus = () => { focused++; };
+  const e = env({ focused: field, content: () => ({ content: "BODY" }) });
+  try {
+    run(openPalette, [meta("7", "seven")], { copyOnly: true });
+    const before = focused;
+    rows(e)[0].fire("click");
+    await wait(50);
+    assert.deepEqual(e.copied, ["BODY"]);
+    assert.ok(focused > before, "target.focus() must be called after the copy");
+  } finally { e.restore(); }
+});
