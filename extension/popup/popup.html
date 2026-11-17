@@ -10,16 +10,18 @@
   <h1 id="title">Snippets</h1>
   <input id="search" type="search" placeholder="Search" autocomplete="off">
   <select id="tagFilter" aria-label="Filter by tag"><option value="">All tags</option></select>
-  <div id="dataMount"></div>
   <button id="closeBtn" type="button">Close</button>
 </header>
 <div id="status" class="status" role="status" hidden></div>
 <main class="main">
-  <aside class="left">
-    <button id="newBtn" type="button" class="wide">New</button>
+  <aside class="left wrap">
     <ul id="list" class="list"></ul>
+    <div class="btnrow">
+      <button id="newBtn" type="button">New</button>
+      <button id="deleteBtn" type="button" disabled>Delete</button>
+    </div>
   </aside>
-  <section class="right">
+  <section class="right wrap">
     <p id="placeholder" class="placeholder">Select a snippet or click New</p>
     <form id="editor" hidden autocomplete="off">
       <label>Name <input id="name" type="text"></label>
@@ -28,17 +30,20 @@
         <div id="chips" class="chips"><input id="tagInput" type="text" list="tagList" placeholder="Add tag, press Enter"></div>
       </label>
       <datalist id="tagList"></datalist>
-      <label class="grow">Content <textarea id="content"></textarea></label>
+      <div class="grow contentbox">
+        <div class="contenthead">
+          <label for="content">Content</label>
+          <a href="#" id="copyLink" role="button">Copy content</a>
+        </div>
+        <textarea id="content"></textarea>
+      </div>
       <div id="contentErr" class="err" hidden></div>
+      <div class="saverow"><button id="saveBtn" type="button" disabled>Save</button></div>
     </form>
   </section>
 </main>
 <footer class="foot">
-  <div id="footMain" class="row">
-    <button id="deleteBtn" type="button" disabled>Delete</button>
-    <button id="copyBtn" type="button" disabled>Copy</button>
-    <button id="saveBtn" type="button" disabled>Save</button>
-  </div>
+  <div class="row"><div id="dataMount"></div></div>
   <div id="footConfirm" class="row confirm" hidden>
     <span id="confirmText"></span>
     <button id="confirmNo" type="button"></button>

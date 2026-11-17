@@ -1,5 +1,6 @@
 import { createStore, StoreError } from "../lib/store.js";
 import { allTags, normalizeTags } from "../lib/tags.js";
+import { formsEqual } from "../lib/dirty.js";
 import { mountDataMenu } from "./data-menu.js";
 
 const $ = (id) => document.getElementById(id);
@@ -27,18 +28,13 @@ function showStatus(text, isError = false) {
 }
 function cancelConfirm() {
   $("footConfirm").hidden = true;
-  $("footMain").hidden = false;
 }
 function askConfirm(text, noLabel, yesLabel, onYes, onNo) {
   $("confirmText").textContent = text;
   $("confirmNo").textContent = noLabel;
   $("confirmYes").textContent = yesLabel;
-  $("footMain").hidden = true;
   $("footConfirm").hidden = false;
-  const done = () => {
-    $("footConfirm").hidden = true;
-    $("footMain").hidden = false;
-  };
+  const done = () => { $("footConfirm").hidden = true; };
   $("confirmNo").onclick = () => { done(); onNo?.(); };
   $("confirmYes").onclick = () => { done(); onYes(); };
 }
@@ -97,6 +93,7 @@ function renderChips() {
     chip.append(x);
     input.before(chip);
   }
+  updateSaveState();
 }
 function commitTagInput() {
   const input = $("tagInput");
@@ -114,10 +111,10 @@ function readForm() {
   };
 }
 function isDirty() {
-  if (mode === "none") return false;
-  const f = readForm();
-  return f.name !== baseline.name || f.content !== baseline.content ||
-    f.tags.join("\u0000") !== baseline.tags.join("\u0000");
+  return mode !== "none" && !formsEqual(readForm(), baseline);
+}
+function updateSaveState() {
+  $("saveBtn").disabled = !isDirty();
 }
 function setEditor(m, snippet, { content = "" } = {}) {
   cancelConfirm();
@@ -134,10 +131,9 @@ function setEditor(m, snippet, { content = "" } = {}) {
   for (const id of ["nameErr", "contentErr"]) $(id).hidden = true;
   baseline = { name: $("name").value, content: $("content").value, tags: [...tags] };
   if (m === "new" && content) baseline = { name: "", content: "", tags: [] }; // prefilled content counts as unsaved
-  $("saveBtn").disabled = !show;
-  $("copyBtn").disabled = !show;
+  $("saveBtn").classList.add("primary");
   $("deleteBtn").disabled = m !== "edit";
-  $("saveBtn").classList.toggle("primary", show);
+  updateSaveState();
   markSelected();
 }
 function guardUnsaved(proceed) {
@@ -168,6 +164,7 @@ $("tagInput").addEventListener("keydown", (e) => {
 });
 $("tagInput").addEventListener("change", commitTagInput);
 $("editor").addEventListener("submit", (e) => e.preventDefault());
+for (const id of ["name", "content", "tagInput"]) $(id).addEventListener("input", updateSaveState);
 
 $("saveBtn").onclick = async () => {
   for (const id of ["nameErr", "contentErr"]) $(id).hidden = true;
@@ -201,15 +198,6 @@ $("deleteBtn").onclick = () => {
     setEditor("none", null);
   });
 };
-$("copyBtn").onclick = async () => {
-  try {
-    await navigator.clipboard.writeText($("content").value);
-    showStatus("Copied");
-  } catch {
-    showStatus("Copy failed", true);
-  }
-};
-
 // ---------- "Add as snippet" ----------
 function endAddMode() {
   addMode = false;
