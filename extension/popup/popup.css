@@ -36,7 +36,7 @@ button.primary { background: var(--accent); color: var(--accent-fg); border-colo
 .list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
 .list li { padding: 4px 6px; border: 1px solid var(--border); background: var(--bg); margin-bottom: 3px; cursor: pointer; border-radius: 3px; }
 .list li.sel { background: var(--sel); }
-.list .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: top; text-decoration: underline; cursor: pointer; }
 .list .p { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .right { flex: 1; min-width: 0; }
 .placeholder { margin: auto; color: var(--muted); }

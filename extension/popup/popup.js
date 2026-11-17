@@ -2,6 +2,7 @@ import { createStore, StoreError } from "../lib/store.js";
 import { allTags, normalizeTags } from "../lib/tags.js";
 import { formsEqual } from "../lib/dirty.js";
 import { mountDataMenu } from "./data-menu.js";
+import { copyWithFeedback, copyTextWithFeedback } from "./copy.js";
 
 const $ = (id) => document.getElementById(id);
 const store = createStore(chrome.storage.local);
@@ -144,7 +145,10 @@ function guardUnsaved(proceed) {
 // ---------- actions ----------
 $("list").addEventListener("click", (e) => {
   const li = e.target.closest("li");
-  if (!li || li.dataset.id === selectedId) return;
+  if (!li) return;
+  const nameEl = e.target.closest(".n");
+  if (nameEl) { copyWithFeedback(store, li.dataset.id, nameEl); return; } // name = copy, rest of row = select
+  if (li.dataset.id === selectedId) return;
   guardUnsaved(async () => {
     dropQueued();
     const s = await store.get(li.dataset.id);
@@ -164,6 +168,11 @@ $("tagInput").addEventListener("keydown", (e) => {
 });
 $("tagInput").addEventListener("change", commitTagInput);
 $("editor").addEventListener("submit", (e) => e.preventDefault());
+$("copyLink").addEventListener("click", (e) => {
+  e.preventDefault();
+  const text = $("content").value;
+  if (text) copyTextWithFeedback(text, $("copyLink"));
+});
 for (const id of ["name", "content", "tagInput"]) $(id).addEventListener("input", updateSaveState);
 
 $("saveBtn").onclick = async () => {
