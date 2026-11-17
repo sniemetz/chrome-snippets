@@ -19,6 +19,7 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 
 ### Backlog (not in v1)
 - Cloud sync. Preferred path: Drive via `identity` + `drive.file` scope. Open point: no native folder picker; Google Picker needs a sandboxed or hosted page. Local storage stays the source of truth. Other options checked: `storage.sync` (102,400 B total, 8,192 B per item: too small), `bookmarks` (permission warning, unverified size limits), File System Access (no official Drive client on Linux).
+- Keyboard navigation in the toolbar popup (search autofocus, focusable rows, Enter copies).
 - Tag registry and options page (configured tag dropdown). A simple tag manager (rename, delete) is done in the window view.
 - CSV export/import.
 - Most-recently-used ordering (needs `lastUsed` field).

@@ -11,7 +11,8 @@ const WIN = { width: 616, height: 490 };
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: "paste", title: "Paste snippet", contexts: ["editable"] });
-    chrome.contextMenus.create({ id: "allow", title: "Allow Snippets on this site", contexts: ["editable"] });
+    // Only inside nested iframes: the top page is already covered by activeTab.
+    chrome.contextMenus.create({ id: "allow", title: "Allow Snippets on this site", contexts: ["frame"] });
     chrome.contextMenus.create({ id: "add", title: "Add as snippet", contexts: ["selection"] });
     chrome.contextMenus.create({ id: "open", title: "Open Snippets", contexts: ["all"] });
   });
