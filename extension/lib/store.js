@@ -103,6 +103,37 @@ export function createStore(
       await area.remove(ck(id));
     },
 
+    // Tag operations rewrite `meta` only; no content key is read or written.
+    async renameTag(from, to) {
+      const target = String(to ?? "").trim();
+      if (!target) throw new StoreError("TAG_REQUIRED");
+      const metas = await readMeta();
+      const f = lc(String(from ?? "").trim());
+      const merged = allTags(metas).find((t) => lc(t) === lc(target) && lc(t) !== f);
+      const next = merged ?? target;
+      let changed = 0;
+      const out = metas.map((m) => {
+        if (!m.tags.some((x) => lc(x) === f)) return m;
+        changed++;
+        return { ...m, tags: normalizeTags(m.tags.map((x) => (lc(x) === f ? next : x)), []) };
+      });
+      if (changed) await area.set({ [META]: out });
+      return changed;
+    },
+
+    async deleteTag(tag) {
+      const t = lc(String(tag ?? "").trim());
+      const metas = await readMeta();
+      let changed = 0;
+      const out = metas.map((m) => {
+        if (!m.tags.some((x) => lc(x) === t)) return m;
+        changed++;
+        return { ...m, tags: m.tags.filter((x) => lc(x) !== t) };
+      });
+      if (changed) await area.set({ [META]: out });
+      return changed;
+    },
+
     async replaceAll(snippets) {
       const old = await readMeta();
       const entries = { [META]: snippets.map(toMeta) };

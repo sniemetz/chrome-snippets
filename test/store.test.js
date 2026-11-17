@@ -156,3 +156,63 @@ test("listMeta is sorted by name case-insensitively (palette opens in manager or
   for (const n of ["b", "C", "a"]) await store.add({ name: n, content: "x", tags: [] });
   assert.deepEqual((await store.listMeta()).map((m) => m.name), ["a", "b", "C"]);
 });
+
+// ---- tag operations (meta only) ----
+const addTagged = async (store, name, tags) => store.add({ name, content: "x", tags });
+const tagsOf = async (store) => Object.fromEntries((await store.listMeta()).map((m) => [m.name, m.tags]));
+
+test("renameTag changes the tag on all snippets and returns the count", async () => {
+  const { store } = setup();
+  await addTagged(store, "s1", ["a"]);
+  await addTagged(store, "s2", ["a", "b"]);
+  await addTagged(store, "s3", ["c"]);
+  assert.equal(await store.renameTag("a", "z"), 2);
+  assert.deepEqual(await tagsOf(store), { s1: ["z"], s2: ["z", "b"], s3: ["c"] });
+});
+test("renameTag merges into an existing tag, existing spelling wins, no duplicates", async () => {
+  const { store } = setup();
+  await addTagged(store, "s1", ["Foo", "Bar"]);
+  await addTagged(store, "s2", ["foo"]);
+  await store.renameTag("Foo", "bar");
+  assert.deepEqual(await tagsOf(store), { s1: ["Bar"], s2: ["Bar"] });
+});
+test("renameTag allows a case-only change", async () => {
+  const { store } = setup();
+  await addTagged(store, "s1", ["foo"]);
+  assert.equal(await store.renameTag("foo", "Foo"), 1);
+  assert.deepEqual(await tagsOf(store), { s1: ["Foo"] });
+});
+test("renameTag rejects an empty or whitespace target and writes nothing", async () => {
+  const { store, area } = setup();
+  await addTagged(store, "s1", ["a"]);
+  let sets = 0;
+  const orig = area.set;
+  area.set = async (o) => { sets++; return orig(o); };
+  await rejectsWith(store.renameTag("a", "   "), "TAG_REQUIRED");
+  assert.equal(sets, 0);
+});
+test("renameTag of an unknown tag returns 0 and does not write", async () => {
+  const { store, area } = setup();
+  await addTagged(store, "s1", ["a"]);
+  let sets = 0;
+  const orig = area.set;
+  area.set = async (o) => { sets++; return orig(o); };
+  assert.equal(await store.renameTag("nope", "z"), 0);
+  assert.equal(sets, 0);
+});
+test("deleteTag removes case-insensitively and returns the count", async () => {
+  const { store } = setup();
+  await addTagged(store, "s1", ["Work", "b"]);
+  await addTagged(store, "s2", ["c"]);
+  assert.equal(await store.deleteTag("work"), 1);
+  assert.deepEqual(await tagsOf(store), { s1: ["b"], s2: ["c"] });
+  assert.equal(await store.deleteTag("missing"), 0);
+});
+test("tag operations read no content keys", async () => {
+  const { store, area } = setup();
+  await addTagged(store, "s1", ["a"]);
+  area.gets.length = 0;
+  await store.renameTag("a", "b");
+  await store.deleteTag("b");
+  assert.deepEqual(contentKeysRead(area), []);
+});
