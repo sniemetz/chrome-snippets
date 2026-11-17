@@ -1,10 +1,13 @@
 import { createStore, StoreError } from "../lib/store.js";
 import { allTags, normalizeTags } from "../lib/tags.js";
 import { formsEqual } from "../lib/dirty.js";
+import { viewFromSearch } from "../lib/view.js";
 import { mountDataMenu } from "./data-menu.js";
 import { copyWithFeedback, copyTextWithFeedback } from "./copy.js";
 
 const $ = (id) => document.getElementById(id);
+const view = viewFromSearch(location.search);
+document.body.dataset.view = view;
 const store = createStore(chrome.storage.local);
 
 let metas = []; // metadata only: content is loaded on select
@@ -146,6 +149,10 @@ function guardUnsaved(proceed) {
 $("list").addEventListener("click", (e) => {
   const li = e.target.closest("li");
   if (!li) return;
+  if (view === "toolbar") { // no editor here: any click on a row copies, then the popup closes
+    copyWithFeedback(store, li.dataset.id, li.querySelector(".n"), { closeAfter: true });
+    return;
+  }
   const nameEl = e.target.closest(".n");
   if (nameEl) { copyWithFeedback(store, li.dataset.id, nameEl); return; } // name = copy, rest of row = select
   if (li.dataset.id === selectedId) return;
@@ -235,11 +242,19 @@ async function applyPendingNew() {
   askConfirm("Unsaved changes. Add selected text?", "Keep editing", "Discard", startAdd,
     () => showStatus("Selected text kept: save or discard to add it"));
 }
-chrome.storage.session.onChanged.addListener((c) => { if (c.pendingNew?.newValue) applyPendingNew(); });
+if (view === "window") {
+  chrome.storage.session.onChanged.addListener((c) => { if (c.pendingNew?.newValue) applyPendingNew(); });
+}
 chrome.storage.onChanged.addListener((_c, area) => { if (area === "local") reload(); });
+$("openMgrBtn").onclick = async () => {
+  try { await chrome.runtime.sendMessage({ type: "open-manager" }); } catch { /* window opens anyway or not */ }
+  window.close();
+};
 
 // ---------- boot ----------
-mountDataMenu($("dataMount"), store, { onStatus: (t, isErr) => showStatus(t, isErr) });
 await reload();
-setEditor("none", null);
-await applyPendingNew();
+if (view === "window") {
+  mountDataMenu($("dataMount"), store, { onStatus: (t, isErr) => showStatus(t, isErr) });
+  setEditor("none", null);
+  await applyPendingNew(); // only the window consumes "Add as snippet" text
+}

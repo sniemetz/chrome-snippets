@@ -65,3 +65,14 @@ button.primary { background: var(--accent); color: var(--accent-fg); border-colo
 .saverow { display: flex; justify-content: flex-end; flex: none; }
 .foot { display: flex; align-items: center; justify-content: space-between; }
 .row.confirm { margin-left: auto; }
+
+/* Toolbar popup: list only. The window view (?view=window) keeps the full layout. */
+body[data-view="toolbar"] { width: 360px; }
+body[data-view="toolbar"] .right,
+body[data-view="toolbar"] .btnrow,
+body[data-view="toolbar"] .foot,
+body[data-view="toolbar"] #closeBtn,
+body[data-view="toolbar"] #title { display: none; }
+body[data-view="toolbar"] .left { width: auto; flex: 1; }
+body[data-view="toolbar"] .main { padding-bottom: 10px; }
+body[data-view="window"] #openMgrBtn { display: none; }

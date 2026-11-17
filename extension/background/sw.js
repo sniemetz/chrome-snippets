@@ -3,7 +3,7 @@ import { openPalette } from "../lib/overlay.js";
 import { handleMessage } from "../lib/messages.js";
 
 const store = createStore(chrome.storage.local);
-const MANAGER_URL = "popup/popup.html";
+const MANAGER_URL = "popup/popup.html?view=window";
 // Outer window size = 600 x 445 content plus window chrome (adjust after manual check).
 const WIN = { width: 616, height: 490 };
 
@@ -68,6 +68,10 @@ chrome.commands.onCommand.addListener(async (command) => {
 // Palette (injected into pages) asks for search results and for one snippet body at a time.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
+  if (msg && msg.type === "open-manager") {
+    openManager().then(() => sendResponse({ ok: true }), () => sendResponse({ ok: false }));
+    return true;
+  }
   handleMessage(store, msg).then(sendResponse, () => sendResponse(undefined));
   return true;
 });
