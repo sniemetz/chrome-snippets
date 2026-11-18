@@ -87,3 +87,9 @@ body[data-view="window"] #openMgrBtn { display: none; }
 .taglist li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--border); }
 .taglist .tname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .taglist input { flex: 1; min-width: 0; padding: 2px 4px; }
+
+.gate { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 14px; display: flex; flex-direction: column; gap: 8px; }
+.gate[hidden] { display: none; }
+.gate h2 { font-size: 13px; margin: 0; }
+.gate .syncrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+body.gating .main { display: none; }

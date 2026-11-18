@@ -29,3 +29,13 @@ test("unknown stored intervalMin falls back to 15", async () => {
   await area.set({ sync: { linked: true, intervalMin: 7 } });
   assert.equal((await createSyncState(area).get()).intervalMin, 15);
 });
+
+import { needsAttention } from "../extension/lib/sync-state.js";
+test("needsAttention: only a linked folder that is paused or needs a decision", () => {
+  const st = (o) => ({ ...defaultState(), ...o });
+  assert.equal(needsAttention(st({ linked: true, status: "paused" })), true);
+  assert.equal(needsAttention(st({ linked: true, status: "needs-decision" })), true);
+  assert.equal(needsAttention(st({ linked: true, status: "ok" })), false);
+  assert.equal(needsAttention(st({ linked: true, status: "error" })), false);
+  assert.equal(needsAttention(st({ linked: false, status: "paused" })), false);
+});

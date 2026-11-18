@@ -1,8 +1,10 @@
-import { INTERVALS, createSyncState } from "../lib/sync-state.js";
+import { INTERVALS, createSyncState, needsAttention } from "../lib/sync-state.js";
 
 // Sync panel (manager window). Reads the persisted sync state and re-renders when it changes.
 // getHandle/putHandle/deleteHandle: directory handle store; send(msg): runtime message to the service worker.
-export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, state = createSyncState() }) {
+// compact: toolbar-popup gate. Shows only what the user must do (re-allow / decision), no Cancel,
+// and calls onResolved() as soon as sync no longer needs attention.
+export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, state = createSyncState(), compact = false, onResolved }) {
   const el = (tag, props = {}, ...kids) => {
     const e = Object.assign(document.createElement(tag), props);
     e.append(...kids);
@@ -44,9 +46,28 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     return `Synced ${time} - ${Object.keys(st.synced).length} snippets`;
   }
 
+  function banners(st, withCancel) {
+    if (st.status === "paused") {
+      root.append(row(el("span", { className: "err", textContent: "Folder access must be re-allowed" }), btn("Re-allow folder", reallow, { className: "primary" })));
+    }
+    if (st.status === "needs-decision" && st.decision && !(withCancel && decisionDismissed)) {
+      const n = st.decision.conflicts;
+      root.append(
+        el("p", { className: "err", textContent: `${n} snippet${n === 1 ? "" : "s"} conflict (deleted on one side or edited on both). Choose which side wins for these. Everything else is merged.` }),
+        row(
+          btn("Folder wins", () => send({ type: "sync-decide", choice: "folder" })),
+          btn("This device wins", () => send({ type: "sync-decide", choice: "local" })),
+          ...(withCancel ? [btn("Cancel", () => { send({ type: "sync-decide", choice: "cancel" }); decisionDismissed = true; render(); })] : []),
+        ),
+      );
+    }
+  }
+
   async function render() {
     const st = await state.get();
+    if (compact && !needsAttention(st)) { onResolved?.(); return; }
     root.replaceChildren(el("h2", { textContent: "Sync" }));
+    if (compact) { banners(st, false); return; }
     if (!st.linked) {
       root.append(
         el("p", { className: "placeholder", textContent: "Pick a folder your sync tool keeps in sync across devices. When Chrome asks, choose \"Allow on every visit\"." }),
@@ -54,20 +75,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
       );
       return;
     }
-    if (st.status === "paused") {
-      root.append(row(el("span", { className: "err", textContent: "Folder access must be re-allowed" }), btn("Re-allow folder", reallow, { className: "primary" })));
-    }
-    if (st.status === "needs-decision" && st.decision && !decisionDismissed) {
-      const n = st.decision.conflicts;
-      root.append(
-        el("p", { className: "err", textContent: `${n} snippet${n === 1 ? "" : "s"} conflict (deleted on one side or edited on both). Choose which side wins for these. Everything else is merged.` }),
-        row(
-          btn("Folder wins", () => send({ type: "sync-decide", choice: "folder" })),
-          btn("This device wins", () => send({ type: "sync-decide", choice: "local" })),
-          btn("Cancel", () => { send({ type: "sync-decide", choice: "cancel" }); decisionDismissed = true; render(); }),
-        ),
-      );
-    }
+    banners(st, true);
     root.append(row(el("span", { textContent: `Folder: ${st.folderName}` }), btn("Change folder...", pick)));
     root.append(row(el("span", { textContent: statusText(st) }), btn("Sync now", () => send({ type: "sync-now" }))));
     if (st.message && st.status !== "error" && st.status !== "paused") root.append(el("p", { className: "muted", textContent: st.message }));

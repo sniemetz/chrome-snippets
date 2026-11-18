@@ -8,6 +8,7 @@ import { mountDataMenu } from "./data-menu.js";
 import { copyWithFeedback, copyTextWithFeedback } from "./copy.js";
 import { mountTagsPanel } from "./tags-panel.js";
 import { mountSyncPanel } from "./sync-panel.js";
+import { createSyncState, needsAttention } from "../lib/sync-state.js";
 import { getHandle, putHandle, deleteHandle } from "./handle-store.js";
 
 const $ = (id) => document.getElementById(id);
@@ -346,9 +347,27 @@ $("openMgrBtn").onclick = async () => {
   window.close();
 };
 
+// ---------- toolbar popup: sync gate ----------
+// When the badge "!" shows (folder access lost or a decision pending), the popup first shows what the
+// user must do; the normal list appears as soon as sync is OK again.
+async function mountSyncGate() {
+  const gateEl = $("syncGate");
+  const leave = () => { document.body.classList.remove("gating"); gateEl.hidden = true; };
+  const gate = mountSyncPanel(gateEl, {
+    getHandle, putHandle, compact: true, onResolved: leave,
+    send: (msg) => chrome.runtime.sendMessage(msg),
+    onStatus: (t, isErr) => showStatus(t, isErr),
+  });
+  if (!needsAttention(await createSyncState(chrome.storage.local).get())) return;
+  document.body.classList.add("gating");
+  gateEl.hidden = false;
+  await gate.render();
+}
+
 // ---------- boot ----------
 await reload();
 setEditor("none", null); // both views edit; the list holds metadata only, content loads per snippet
+if (view === "toolbar") await mountSyncGate();
 if (view === "window") {
   mountDataMenu($("dataMount"), store, { onStatus: (t, isErr) => showStatus(t, isErr) });
   tagsPanel = mountTagsPanel($("tagsPanel"), store, { onChanged: reload });

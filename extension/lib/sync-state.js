@@ -27,3 +27,6 @@ export function createSyncState(area = globalThis.chrome?.storage?.local) {
     clear: () => area.remove(KEY),
   };
 }
+
+// True when sync is stopped until the user acts (the toolbar badge shows "!").
+export const needsAttention = (st) => st.linked && (st.status === "paused" || st.status === "needs-decision");
