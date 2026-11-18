@@ -1,23 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createStore, StoreError } from "../extension/lib/store.js";
+import { memArea } from "./helpers/mem-area.js";
 
-function memArea() {
-  const data = {};
-  const gets = [];
-  return {
-    data, gets,
-    async get(keys) {
-      gets.push(keys);
-      const ks = keys == null ? Object.keys(data) : [].concat(keys);
-      const out = {};
-      for (const k of ks) if (k in data) out[k] = structuredClone(data[k]);
-      return out;
-    },
-    async set(obj) { for (const [k, v] of Object.entries(obj)) data[k] = structuredClone(v); },
-    async remove(keys) { for (const k of [].concat(keys)) delete data[k]; },
-  };
-}
 function setup() {
   let t = 1000, n = 0;
   const area = memArea();
@@ -215,4 +200,48 @@ test("tag operations read no content keys", async () => {
   await store.renameTag("a", "b");
   await store.deleteTag("b");
   assert.deepEqual(contentKeysRead(area), []);
+});
+
+const sn = (id, name, o = {}) => ({ id, name, content: `c-${id}`, tags: [], created: 5, modified: 6, ...o });
+
+test("renameTag bumps modified only on changed snippets", async () => {
+  const { store } = setup();
+  const a = await store.add({ name: "a", content: "x", tags: ["t"] });
+  const b = await store.add({ name: "b", content: "y", tags: ["u"] });
+  await store.renameTag("t", "z");
+  const m = Object.fromEntries((await store.listMeta()).map((x) => [x.id, x]));
+  assert.ok(m[a.id].modified > a.modified);
+  assert.equal(m[b.id].modified, b.modified);
+});
+test("deleteTag bumps modified only on changed snippets", async () => {
+  const { store } = setup();
+  const a = await store.add({ name: "a", content: "x", tags: ["t"] });
+  const b = await store.add({ name: "b", content: "y", tags: ["u"] });
+  await store.deleteTag("t");
+  const m = Object.fromEntries((await store.listMeta()).map((x) => [x.id, x]));
+  assert.ok(m[a.id].modified > a.modified);
+  assert.equal(m[b.id].modified, b.modified);
+});
+test("upsertMany inserts new and replaces existing by id, preserving id/created/modified", async () => {
+  const { store } = setup();
+  const a = await store.add({ name: "a", content: "x", tags: [] });
+  await store.upsertMany([sn(a.id, "a2", { content: "new" }), sn("p9", "p")]);
+  const all = await store.list();
+  assert.equal(all.length, 2);
+  assert.deepEqual(all.find((s) => s.id === a.id), sn(a.id, "a2", { content: "new" }));
+  assert.deepEqual(all.find((s) => s.id === "p9"), sn("p9", "p"));
+});
+test("upsertMany reads no content keys", async () => {
+  const { store, area } = setup();
+  await store.upsertMany([sn("p1", "p")]);
+  await store.upsertMany([sn("p1", "p", { content: "z" })]);
+  assert.deepEqual(contentKeysRead(area), []);
+});
+test("removeMany deletes metas and content keys, ignores unknown ids", async () => {
+  const { store, area } = setup();
+  await store.upsertMany([sn("p1", "p"), sn("p2", "q")]);
+  await store.removeMany(["p1", "nope"]);
+  assert.deepEqual((await store.listMeta()).map((m) => m.id), ["p2"]);
+  assert.equal("c:p1" in area.data, false);
+  assert.equal("c:p2" in area.data, true);
 });

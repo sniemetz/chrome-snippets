@@ -115,7 +115,7 @@ export function createStore(
       const out = metas.map((m) => {
         if (!m.tags.some((x) => lc(x) === f)) return m;
         changed++;
-        return { ...m, tags: normalizeTags(m.tags.map((x) => (lc(x) === f ? next : x)), []) };
+        return { ...m, tags: normalizeTags(m.tags.map((x) => (lc(x) === f ? next : x)), []), modified: now() };
       });
       if (changed) await area.set({ [META]: out });
       return changed;
@@ -128,7 +128,7 @@ export function createStore(
       const out = metas.map((m) => {
         if (!m.tags.some((x) => lc(x) === t)) return m;
         changed++;
-        return { ...m, tags: m.tags.filter((x) => lc(x) !== t) };
+        return { ...m, tags: m.tags.filter((x) => lc(x) !== t), modified: now() };
       });
       if (changed) await area.set({ [META]: out });
       return changed;
@@ -148,6 +148,29 @@ export function createStore(
       const entries = { [META]: [...(await readMeta()), ...snippets.map(toMeta)] };
       for (const s of snippets) entries[ck(s.id)] = s.content;
       await area.set(entries);
+    },
+
+    // Sync support: verbatim writes (id, created, modified kept as given); caller has validated.
+    async upsertMany(snippets) {
+      const metas = await readMeta();
+      const entries = {};
+      for (const sn of snippets) {
+        const i = metas.findIndex((m) => m.id === sn.id);
+        if (i >= 0) metas[i] = toMeta(sn);
+        else metas.push(toMeta(sn));
+        entries[ck(sn.id)] = sn.content;
+      }
+      entries[META] = metas;
+      await area.set(entries);
+    },
+
+    async removeMany(ids) {
+      const drop = new Set(ids);
+      const metas = await readMeta();
+      const gone = metas.filter((m) => drop.has(m.id)).map((m) => ck(m.id));
+      if (!gone.length) return;
+      await area.set({ [META]: metas.filter((m) => !drop.has(m.id)) });
+      await area.remove(gone);
     },
   };
 }
