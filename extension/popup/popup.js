@@ -1,6 +1,7 @@
 import { createStore, StoreError } from "../lib/store.js";
 import { allTags, normalizeTags } from "../lib/tags.js";
 import { formsEqual } from "../lib/dirty.js";
+import { largeWarning } from "../lib/limits.js";
 import { viewFromSearch } from "../lib/view.js";
 import { mountDataMenu } from "./data-menu.js";
 import { copyWithFeedback, copyTextWithFeedback } from "./copy.js";
@@ -191,10 +192,14 @@ $("copyLink").addEventListener("click", (e) => {
 });
 for (const id of ["name", "content", "tagInput"]) $(id).addEventListener("input", updateSaveState);
 
-$("saveBtn").onclick = async () => {
+$("saveBtn").onclick = () => doSave(false);
+
+async function doSave(confirmedLarge) {
   for (const id of ["nameErr", "contentErr"]) $(id).hidden = true;
   try {
     const f = readForm();
+    const warn = confirmedLarge ? null : largeWarning(f.content);
+    if (warn) { askConfirm(warn, "Cancel", "Save anyway", () => doSave(true)); return; }
     const saved = mode === "edit" ? await store.update(selectedId, f) : await store.add(f);
     await reload();
     showStatus("Saved");
@@ -213,7 +218,7 @@ $("saveBtn").onclick = async () => {
     $(id).textContent = text;
     $(id).hidden = false;
   }
-};
+}
 $("deleteBtn").onclick = () => {
   askConfirm("Delete this snippet?", "Cancel", "Delete", async () => {
     await store.remove(selectedId);
