@@ -22,6 +22,18 @@ Chrome extension (Manifest V3). Save, search, and paste text snippets.
 - Right-click on selected text: **Add as snippet**.
 - A `!` on the toolbar icon for 3 seconds means the action failed on this page.
 
+## Sync between devices
+
+- Open the manager window > **Sync** > **Choose folder...** Pick a folder that your own tool (Dropbox, Google Drive, Box, Syncthing, ...) keeps in sync across devices. When Chrome asks, choose **Allow on every visit**; otherwise Chrome drops the permission when the window closes and sync pauses.
+- The folder gets one `<id>.json` file per snippet (plain text, not encrypted). Other files in the folder are ignored. Cloud tools may keep files "online-only"; those are retried on the next run.
+- Sync runs in the background: 2 seconds after a change, every 15 min (choose 15 min, 30 min, 1 h, 2 h, 6 h or 12 h), when the computer wakes or unlocks, at browser start, and on **Sync now**.
+- Deleting a snippet on one device deletes it on the others. If you edit a snippet on one device and delete it on another, the edit wins.
+- Safety guard: if many snippets would be deleted or overwritten at once (more than 5 and 20%, or the folder is suddenly empty), sync stops and asks: **Folder wins**, **This device wins** or **Cancel**. The choice applies only to the conflicting snippets; everything else is merged. Restoring a smaller library triggers this; **This device wins** mirrors the restore into the folder.
+- First link merges: nothing is deleted. Two snippets with the same name and the same content become one. Same name, different content: both stay, one is renamed `Name (2)` (the same one on every device).
+- The same snippet edited on two devices: the newest edit wins.
+- A `!` on the toolbar icon means sync needs you: **Re-allow folder** (permission lost) or a conflict decision.
+- **Unlink** keeps your snippets and the folder files. Linking again (the same or another folder) is a fresh first link: snippets deleted on either side since the last sync come back.
+
 ## Keyboard shortcuts
 
 No default keys. Bind them at `chrome://extensions/shortcuts`:
