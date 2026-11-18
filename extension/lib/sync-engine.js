@@ -29,6 +29,12 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
       folder: listing, synced, firstLink,
     });
 
+    if (plan.guard.tripped && !resolve) {
+      const { conflicts, threshold, reason } = plan.guard;
+      await state.set({ status: "needs-decision", message: "", decision: { conflicts, threshold, reason } });
+      return { status: "needs-decision", counts, summary: null };
+    }
+
     const record = (sn, fileModified) => { synced[sn.id] = { modified: sn.modified, fileModified }; };
 
     // Pull one snippet, resolving a name clash with a different local snippet (spec 6.5).
@@ -104,12 +110,17 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
     for (const a of plan.actions) {
       if ((await folder.permission()) !== "granted") { status = "paused"; message = "Folder access must be re-allowed"; break; }
       try {
-        if (a.type === "push") await push(a.id);
-        else if (a.type === "pull") await pull(await folder.read(a.id), fileMod.get(a.id));
-        else if (a.type === "conflict") await conflict(a.id);
-        else if (a.type === "deleteLocal") { await store.removeMany([a.id]); byId.delete(a.id); delete synced[a.id]; counts.deletedLocal++; }
-        else if (a.type === "deleteFile") { await folder.remove(a.id); delete synced[a.id]; counts.deletedFiles++; }
-        else if (a.type === "forget") delete synced[a.id];
+        let type = a.type;
+        if (plan.guard.tripped) {
+          if (resolve === "folder" && (type === "deleteFile" || type === "conflict")) type = "pull";
+          else if (resolve === "local" && (type === "deleteLocal" || type === "conflict")) type = "push";
+        }
+        if (type === "push") await push(a.id);
+        else if (type === "pull") await pull(await folder.read(a.id), fileMod.get(a.id));
+        else if (type === "conflict") await conflict(a.id);
+        else if (type === "deleteLocal") { await store.removeMany([a.id]); byId.delete(a.id); delete synced[a.id]; counts.deletedLocal++; }
+        else if (type === "deleteFile") { await folder.remove(a.id); delete synced[a.id]; counts.deletedFiles++; }
+        else if (type === "forget") delete synced[a.id];
       } catch (err) {
         if (!(err instanceof FolderReadError)) throw err;
         counts.skipped++;
@@ -126,7 +137,7 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
   }
 
   await state.set({
-    status, message, synced, lastSync: status === "ok" ? now() : st.lastSync,
+    status, message, synced, decision: null, lastSync: status === "ok" ? now() : st.lastSync,
     ...(firstLink && status === "ok" ? { summary } : {}),
   });
   return { status, counts, summary };

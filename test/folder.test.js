@@ -62,5 +62,6 @@ test("parseSnippetFile rejects bad input", () => {
   assert.throws(() => parseSnippetFile(body({ version: 2 })), FolderReadError);
   assert.throws(() => parseSnippetFile(JSON.stringify({ version: 1, id: ID, content: "c", tags: [], created: 1, modified: 2 })), FolderReadError);
   assert.throws(() => parseSnippetFile(body({ tags: "a" })), FolderReadError);
+  assert.throws(() => parseSnippetFile(body({ name: "   " })), FolderReadError);
   assert.deepEqual(parseSnippetFile(body()), sn());
 });

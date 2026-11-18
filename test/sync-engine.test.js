@@ -159,3 +159,75 @@ test("forget removes the id from synced", async () => {
   await run(c);
   assert.deepEqual(Object.keys((await c.state.get()).synced), ["a"]);
 });
+
+// ---- Task 8: guard, choices, no echo ----
+const names = (n, p = "s") => Array.from({ length: n }, (_, i) => `${p}${i}`);
+const contentKeys = (area) => area.gets.flat().filter((k) => typeof k === "string" && k.startsWith("c:"));
+// 10 linked snippets; local loses s0..s5, folder loses s9, plus new n1 (local) and f1 (folder): 7 conflicts > 5.
+async function trippedSetup() {
+  const c = await linked(names(10).map((i) => sn(i)));
+  for (const i of names(6)) await c.store.remove(i);
+  c.folder.files.delete("s9");
+  await c.store.upsertMany([sn("n1")]);
+  c.folder.put(sn("f1"));
+  return c;
+}
+
+test("guard tripped: nothing changes; status needs-decision; decision carries conflicts and threshold", async () => {
+  const c = await linked(names(10).map((i) => sn(i)));
+  for (const i of names(6, "s")) c.folder.files.delete(i);
+  const syncedBefore = (await c.state.get()).synced;
+  const r = await run(c);
+  assert.equal(r.status, "needs-decision");
+  const st = await c.state.get();
+  assert.equal(st.status, "needs-decision");
+  assert.deepEqual(st.decision, { conflicts: 6, threshold: 5, reason: "count" });
+  assert.deepEqual(st.synced, syncedBefore);
+  assert.equal((await c.store.listMeta()).length, 10);
+  assert.equal(c.folder.files.size, 4);
+});
+test("empty folder with synced history trips the guard and deletes nothing", async () => {
+  const c = await linked([sn("a"), sn("b")]);
+  c.folder.files.clear();
+  const r = await run(c);
+  assert.equal(r.status, "needs-decision");
+  assert.equal((await c.state.get()).decision.reason, "folder-empty");
+  assert.deepEqual(await ids(c.store), ["a", "b"]);
+});
+test('resolve "folder": deleted-here comes back, missing-from-folder is deleted here, new snippets still sync', async () => {
+  const c = await trippedSetup();
+  const r = await run(c, { resolve: "folder" });
+  assert.equal(r.status, "ok");
+  assert.deepEqual(await ids(c.store), [...names(9), "f1", "n1"].sort());
+  assert.deepEqual([...c.folder.files.keys()].sort(), [...names(9), "f1", "n1"].sort());
+  const st = await c.state.get();
+  assert.equal(st.status, "ok");
+  assert.equal(st.decision, null);
+});
+test('resolve "local": deleted-here stays deleted, missing-from-folder is re-pushed, new snippets still sync', async () => {
+  const c = await trippedSetup();
+  const r = await run(c, { resolve: "local" });
+  assert.equal(r.status, "ok");
+  const expected = [...names(4).map((_, i) => `s${i + 6}`), "f1", "n1"].sort();
+  assert.deepEqual(await ids(c.store), expected);
+  assert.deepEqual([...c.folder.files.keys()].sort(), expected);
+  assert.equal((await c.state.get()).decision, null);
+});
+test('a Restore-sized deletion with resolve "local" mirrors the restore into the folder', async () => {
+  const c = await linked(names(10).map((i) => sn(i)));
+  await c.store.replaceAll([sn("s0"), sn("s1")]);
+  assert.equal((await run(c)).status, "needs-decision");
+  await run(c, { resolve: "local" });
+  assert.deepEqual([...c.folder.files.keys()].sort(), ["s0", "s1"]);
+  assert.deepEqual(await ids(c.store), ["s0", "s1"]);
+});
+test("a second run directly after a run writes nothing and reads no content", async () => {
+  const c = await trippedSetup();
+  await run(c, { resolve: "local" });
+  c.folder.calls.read.length = c.folder.calls.write.length = c.folder.calls.remove.length = 0;
+  c.area.gets.length = 0;
+  const r = await run(c);
+  assert.deepEqual(c.folder.calls, { read: [], write: [], remove: [] });
+  assert.deepEqual(contentKeys(c.area), []);
+  assert.deepEqual(r.counts, { pushed: 0, pulled: 0, deletedLocal: 0, deletedFiles: 0, renamed: 0, skipped: 0 });
+});
