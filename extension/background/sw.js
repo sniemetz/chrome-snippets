@@ -2,6 +2,7 @@ import { createStore } from "../lib/store.js";
 import { openPalette } from "../lib/overlay.js";
 import { handleMessage } from "../lib/messages.js";
 import { originPattern, isPermissionError } from "../lib/paste-target.js";
+import { centeredPosition } from "../lib/position.js";
 
 const store = createStore(chrome.storage.local);
 const MANAGER_URL = "popup/popup.html?view=window";
@@ -79,7 +80,13 @@ async function openManager() {
       // window is gone; fall through and create a new one
     }
   }
-  const win = await chrome.windows.create({ type: "popup", url: MANAGER_URL, ...WIN });
+  let parent;
+  try {
+    parent = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
+  } catch {
+    parent = undefined; // let Chrome place the window
+  }
+  const win = await chrome.windows.create({ type: "popup", url: MANAGER_URL, ...WIN, ...centeredPosition(parent, WIN) });
   await chrome.storage.session.set({ windowId: win.id });
 }
 
