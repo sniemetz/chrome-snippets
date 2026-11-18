@@ -102,20 +102,24 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
     }
 
     for (const a of plan.actions) {
+      if ((await folder.permission()) !== "granted") { status = "paused"; message = "Folder access must be re-allowed"; break; }
       try {
         if (a.type === "push") await push(a.id);
         else if (a.type === "pull") await pull(await folder.read(a.id), fileMod.get(a.id));
         else if (a.type === "conflict") await conflict(a.id);
+        else if (a.type === "deleteLocal") { await store.removeMany([a.id]); byId.delete(a.id); delete synced[a.id]; counts.deletedLocal++; }
+        else if (a.type === "deleteFile") { await folder.remove(a.id); delete synced[a.id]; counts.deletedFiles++; }
+        else if (a.type === "forget") delete synced[a.id];
       } catch (err) {
         if (!(err instanceof FolderReadError)) throw err;
         counts.skipped++;
       }
     }
 
-    if (firstLink) {
+    if (firstLink && status === "ok") {
       summary = `${counts.pulled} added from the folder, ${counts.pushed} pushed` + (counts.renamed ? `, ${counts.renamed} renamed` : "");
     }
-    if (counts.skipped) message = `${counts.skipped} files could not be read, will retry`;
+    if (status === "ok" && counts.skipped) message = `${counts.skipped} files could not be read, will retry`;
   } catch (err) {
     status = "error";
     message = String(err?.message ?? err);

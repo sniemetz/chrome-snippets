@@ -84,3 +84,78 @@ test("synced is updated per snippet: a failure on the third write keeps the firs
   assert.equal(r.status, "error");
   assert.deepEqual(Object.keys((await c.state.get()).synced).sort(), ["a", "b"]);
 });
+
+// ---- Task 7: deletes, failures, permission ----
+const linked = async (local) => {
+  const c = await setup({ local });
+  await run(c, { firstLink: true });
+  return c;
+};
+
+test("a snippet deleted locally is deleted from the folder; deleted in the folder is deleted locally", async () => {
+  const c = await linked([sn("a"), sn("b"), sn("c")]);
+  await c.store.remove("a");
+  c.folder.files.delete("b");
+  const r = await run(c);
+  assert.deepEqual(r.counts, { ...r.counts, deletedFiles: 1, deletedLocal: 1 });
+  assert.deepEqual([...c.folder.files.keys()], ["c"]);
+  assert.deepEqual(await ids(c.store), ["c"]);
+  assert.deepEqual(Object.keys((await c.state.get()).synced), ["c"]);
+});
+test("edit beats delete in both directions", async () => {
+  const c = await linked([sn("a"), sn("b"), sn("c")]);
+  await c.store.remove("a");
+  c.folder.put(sn("a", { content: "edited elsewhere", modified: 9000 }));
+  await c.store.update("b", { name: "b", content: "edited here", tags: [] });
+  c.folder.files.delete("b");
+  const r = await run(c);
+  assert.equal((await c.store.get("a")).content, "edited elsewhere");
+  assert.equal(c.folder.files.get("b").snippet.content, "edited here");
+  assert.equal(r.counts.deletedLocal + r.counts.deletedFiles, 0);
+});
+test("an unreadable file is skipped, counted, kept in synced and retried; its local snippet is not deleted", async () => {
+  const c = await linked([sn("a"), sn("b")]);
+  const before = (await c.state.get()).synced.a;
+  c.folder.put(sn("a", { content: "new", modified: 9000 }), { unreadable: true });
+  c.folder.put(sn("x"), { unreadable: true });
+  const r = await run(c);
+  assert.equal(r.status, "ok");
+  assert.equal(r.counts.skipped, 2);
+  assert.equal(r.counts.deletedLocal, 0);
+  assert.ok(await c.store.get("a"));
+  assert.deepEqual((await c.state.get()).synced.a, before);
+  assert.match((await c.state.get()).message, /2 files could not be read/);
+  c.folder.files.get("a").unreadable = false;
+  c.folder.files.get("x").unreadable = false;
+  const r2 = await run(c);
+  assert.equal(r2.counts.pulled, 2);
+  assert.equal((await c.store.get("a")).content, "new");
+  assert.ok(await c.store.get("x"));
+});
+test("permission not granted: status paused, nothing read or written, synced unchanged", async () => {
+  const c = await linked([sn("a")]);
+  const before = (await c.state.get()).synced;
+  await c.store.update("a", { name: "a", content: "changed", tags: [] });
+  c.folder.perm = "prompt";
+  c.folder.calls.write.length = 0;
+  const r = await run(c);
+  assert.equal(r.status, "paused");
+  assert.deepEqual(c.folder.calls, { read: [], write: [], remove: [] });
+  assert.deepEqual((await c.state.get()).synced, before);
+  assert.equal((await c.state.get()).status, "paused");
+});
+test("permission lost mid-run: remaining actions are not applied; synced reflects completed actions only", async () => {
+  const c = await setup({ local: [sn("a"), sn("b"), sn("c")] });
+  c.folder.permLostAfter = 2;
+  const r = await run(c, { firstLink: true });
+  assert.equal(r.status, "paused");
+  assert.equal(r.counts.pushed, 1);
+  assert.deepEqual(Object.keys((await c.state.get()).synced), ["a"]);
+  assert.equal(c.folder.files.size, 1);
+});
+test("forget removes the id from synced", async () => {
+  const c = await linked([sn("a")]);
+  await c.state.set({ synced: { ...(await c.state.get()).synced, z: { modified: 1, fileModified: 1 } } });
+  await run(c);
+  assert.deepEqual(Object.keys((await c.state.get()).synced), ["a"]);
+});
