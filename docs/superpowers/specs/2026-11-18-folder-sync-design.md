@@ -130,5 +130,5 @@ Lock mechanism for single run; exact text of messages; badge colors; how to batc
 
 ## 9. Open items
 
-- Browser-restart survival of the persistent grant (spike step B, optional). If it fails, sync needs one "Re-allow folder" click per restart; the design already supports that.
-- Remove `spikes/fs-permission/` after the restart check.
+- **Browser-restart survival (tested 2026-11-18): the grant does NOT survive a full Chrome restart.** After restart the badge shows `!` and the Sync panel shows "Folder access must be re-allowed". The persistent choice ("Allow on every visit") is offered on that re-allow prompt, not on the first pick (first pick shows only Allow / Don't allow). So one "Re-allow folder" click is needed per browser restart; with "every visit" chosen, the grant then lasts while the browser runs (spike: 12+ min with all pages closed, idle, locked).
+- Spike `spikes/fs-permission/` removed (2026-11-18).
