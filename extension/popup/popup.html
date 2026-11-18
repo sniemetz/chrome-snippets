@@ -24,6 +24,7 @@
   <section class="right wrap">
     <p id="placeholder" class="placeholder">Select a snippet or click New</p>
     <div id="tagsPanel" class="tagspanel" hidden></div>
+    <div id="syncPanel" class="tagspanel" hidden></div>
     <form id="editor" hidden autocomplete="off">
       <label>Name <input id="name" type="text"></label>
       <div id="nameErr" class="err" hidden></div>
@@ -39,12 +40,13 @@
         <textarea id="content"></textarea>
       </div>
       <div id="contentErr" class="err" hidden></div>
+      <div id="editorNotice" class="notice" role="status" hidden></div>
       <div class="saverow"><button id="saveBtn" type="button" disabled>Save</button></div>
     </form>
   </section>
 </main>
 <footer class="foot">
-  <div class="row"><div id="dataMount"></div><button id="tagsBtn" type="button">Tags</button><button id="openMgrBtn" type="button">Open manager</button></div>
+  <div class="row"><div id="dataMount"></div><button id="tagsBtn" type="button">Tags</button><button id="syncBtn" type="button">Sync</button><button id="openMgrBtn" type="button">Open manager</button></div>
   <div id="footConfirm" class="row confirm" hidden>
     <span id="confirmText"></span>
     <button id="confirmNo" type="button"></button>

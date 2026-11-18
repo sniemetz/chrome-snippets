@@ -71,11 +71,17 @@ button.primary { background: var(--accent); color: var(--accent-fg); border-colo
 /* Toolbar popup (no ?view=window): same list + editor, but no Data/Tags/Close; "Open manager" instead. */
 body[data-view="toolbar"] #closeBtn,
 body[data-view="toolbar"] #dataMount,
-body[data-view="toolbar"] #tagsBtn { display: none; }
+body[data-view="toolbar"] #tagsBtn,
+body[data-view="toolbar"] #syncBtn { display: none; }
 body[data-view="window"] #openMgrBtn { display: none; }
 
 .tagspanel { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; flex: 1; }
 .tagspanel[hidden] { display: none; }
+.tagspanel .syncrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tagspanel p { margin: 2px 0; }
+.muted { color: var(--muted); font-size: 12px; }
+.notice { color: var(--err); font-size: 12px; }
+.notice[hidden] { display: none; }
 .tagspanel h2 { font-size: 13px; margin: 0; }
 .taglist { list-style: none; margin: 0; padding: 0; }
 .taglist li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--border); }

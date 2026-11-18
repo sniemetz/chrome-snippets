@@ -1,0 +1,95 @@
+import { INTERVALS, createSyncState } from "../lib/sync-state.js";
+
+// Sync panel (manager window). Reads the persisted sync state and re-renders when it changes.
+// getHandle/putHandle/deleteHandle: directory handle store; send(msg): runtime message to the service worker.
+export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, state = createSyncState() }) {
+  const el = (tag, props = {}, ...kids) => {
+    const e = Object.assign(document.createElement(tag), props);
+    e.append(...kids);
+    return e;
+  };
+  const btn = (label, onclick, props = {}) => el("button", { type: "button", textContent: label, onclick, ...props });
+  const row = (...kids) => el("div", { className: "syncrow" }, ...kids);
+  let confirmUnlink = false;
+  let decisionDismissed = false;
+
+  async function pick() {
+    let dir;
+    try {
+      dir = await showDirectoryPicker({ mode: "readwrite", id: "snippet-sync" });
+    } catch (err) {
+      if (err?.name !== "AbortError") onStatus(`Could not open the folder: ${err?.message ?? err}`, true);
+      return;
+    }
+    await putHandle(dir);
+    decisionDismissed = false;
+    await send({ type: "sync-link" });
+  }
+
+  async function reallow() {
+    try {
+      const dir = await getHandle();
+      const granted = dir && (await dir.requestPermission({ mode: "readwrite" })) === "granted";
+      if (!granted) { onStatus("Permission not granted", true); return; }
+      await send({ type: "sync-now" });
+    } catch (err) {
+      onStatus(`Could not re-allow the folder: ${err?.message ?? err}`, true);
+    }
+  }
+
+  function statusText(st) {
+    if (st.status === "error") return st.message || "Sync failed";
+    if (!st.lastSync) return "Not synced yet";
+    const time = new Date(st.lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return `Synced ${time} - ${Object.keys(st.synced).length} snippets`;
+  }
+
+  async function render() {
+    const st = await state.get();
+    root.replaceChildren(el("h2", { textContent: "Sync" }));
+    if (!st.linked) {
+      root.append(
+        el("p", { className: "placeholder", textContent: "Pick a folder your sync tool keeps in sync across devices. When Chrome asks, choose \"Allow on every visit\"." }),
+        row(btn("Choose folder...", pick, { className: "primary" })),
+      );
+      return;
+    }
+    if (st.status === "paused") {
+      root.append(row(el("span", { className: "err", textContent: "Folder access must be re-allowed" }), btn("Re-allow folder", reallow, { className: "primary" })));
+    }
+    if (st.status === "needs-decision" && st.decision && !decisionDismissed) {
+      const n = st.decision.conflicts;
+      root.append(
+        el("p", { className: "err", textContent: `${n} snippet${n === 1 ? "" : "s"} conflict (deleted on one side or edited on both). Choose which side wins for these. Everything else is merged.` }),
+        row(
+          btn("Folder wins", () => send({ type: "sync-decide", choice: "folder" })),
+          btn("This device wins", () => send({ type: "sync-decide", choice: "local" })),
+          btn("Cancel", () => { send({ type: "sync-decide", choice: "cancel" }); decisionDismissed = true; render(); }),
+        ),
+      );
+    }
+    root.append(row(el("span", { textContent: `Folder: ${st.folderName}` }), btn("Change folder...", pick)));
+    root.append(row(el("span", { textContent: statusText(st) }), btn("Sync now", () => send({ type: "sync-now" }))));
+    if (st.message && st.status !== "error" && st.status !== "paused") root.append(el("p", { className: "muted", textContent: st.message }));
+    if (st.summary) root.append(el("p", { className: "muted", textContent: `First sync: ${st.summary}` }));
+    const sel = el("select", { ariaLabel: "Check every" });
+    for (const i of INTERVALS) sel.append(new Option(i.label, String(i.min), false, i.min === st.intervalMin));
+    sel.onchange = () => send({ type: "sync-set-interval", min: Number(sel.value) });
+    root.append(row(el("label", {}, "Check every: ", sel)));
+    if (confirmUnlink) {
+      root.append(
+        el("p", { className: "err", textContent: "Unlink this folder? Snippets and folder files stay as they are. Snippets deleted on either side since the last sync come back if you link again." }),
+        row(btn("Cancel", () => { confirmUnlink = false; render(); }), btn("Unlink", async () => { confirmUnlink = false; await send({ type: "sync-unlink" }); })),
+      );
+    } else {
+      root.append(row(btn("Unlink", () => { confirmUnlink = true; render(); })));
+    }
+  }
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.sync) return;
+    if (changes.sync.newValue?.status !== "needs-decision") decisionDismissed = false;
+    if (!root.hidden) render();
+  });
+  return { render };
+}

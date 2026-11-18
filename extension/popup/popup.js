@@ -2,10 +2,13 @@ import { createStore, StoreError } from "../lib/store.js";
 import { allTags, normalizeTags } from "../lib/tags.js";
 import { formsEqual } from "../lib/dirty.js";
 import { largeWarning } from "../lib/limits.js";
+import { classifyExternalChange } from "../lib/editor-sync.js";
 import { viewFromSearch } from "../lib/view.js";
 import { mountDataMenu } from "./data-menu.js";
 import { copyWithFeedback, copyTextWithFeedback } from "./copy.js";
 import { mountTagsPanel } from "./tags-panel.js";
+import { mountSyncPanel } from "./sync-panel.js";
+import { getHandle, putHandle, deleteHandle } from "./handle-store.js";
 
 const $ = (id) => document.getElementById(id);
 const view = viewFromSearch(location.search);
@@ -20,6 +23,9 @@ let mode = "none"; // none | edit | new
 let addMode = false;
 let tags = [];
 let baseline = { name: "", content: "", tags: [] };
+let loadedMeta = null; // { modified, created } of the snippet as the editor loaded it
+let deletedExternally = false;
+let selfWriting = false; // true while this page writes, so its own storage events are not "other device" changes
 let debounce;
 
 // ---------- status / confirm ----------
@@ -128,11 +134,19 @@ function isDirty() {
   return mode !== "none" && !formsEqual(readForm(), baseline);
 }
 function updateSaveState() {
-  $("saveBtn").disabled = !isDirty();
+  $("saveBtn").disabled = !isDirty() && !deletedExternally;
+}
+function showNotice(text) {
+  $("editorNotice").textContent = text;
+  $("editorNotice").hidden = false;
 }
 function setEditor(m, snippet, { content = "" } = {}) {
   cancelConfirm();
   $("tagsPanel").hidden = true;
+  $("syncPanel").hidden = true;
+  $("editorNotice").hidden = true;
+  deletedExternally = false;
+  loadedMeta = snippet ? { modified: snippet.modified, created: snippet.created } : null;
   mode = m;
   selectedId = snippet?.id ?? null;
   const show = m !== "none";
@@ -194,13 +208,36 @@ for (const id of ["name", "content", "tagInput"]) $(id).addEventListener("input"
 
 $("saveBtn").onclick = () => doSave(false);
 
+// Re-creates a snippet that another device deleted (same id and created), after the usual checks.
+async function recreate(f) {
+  const name = f.name.trim();
+  if (!name) throw new StoreError("NAME_REQUIRED");
+  if (!f.content) throw new StoreError("CONTENT_REQUIRED");
+  if (metas.some((m) => m.id !== selectedId && m.name.toLowerCase() === name.toLowerCase())) throw new StoreError("DUPLICATE_NAME");
+  const t = Date.now();
+  const snippet = { id: selectedId, name, content: f.content, tags: f.tags, created: loadedMeta?.created ?? t, modified: t };
+  await store.upsertMany([snippet]);
+  return snippet;
+}
+
 async function doSave(confirmedLarge) {
   for (const id of ["nameErr", "contentErr"]) $(id).hidden = true;
+  selfWriting = true;
   try {
     const f = readForm();
     const warn = confirmedLarge ? null : largeWarning(f.content);
     if (warn) { askConfirm(warn, "Cancel", "Save anyway", () => doSave(true)); return; }
-    const saved = mode === "edit" ? await store.update(selectedId, f) : await store.add(f);
+    let saved;
+    if (mode === "edit") {
+      try {
+        saved = await store.update(selectedId, f);
+      } catch (err) {
+        if (!(err instanceof StoreError && err.code === "NOT_FOUND")) throw err;
+        saved = await recreate(f);
+      }
+    } else {
+      saved = await store.add(f);
+    }
     await reload();
     showStatus("Saved");
     if (queued !== null) { startAdd(); return; }
@@ -217,12 +254,19 @@ async function doSave(confirmedLarge) {
     const [id, text] = msgs[err.code] ?? ["nameErr", err.code];
     $(id).textContent = text;
     $(id).hidden = false;
+  } finally {
+    selfWriting = false;
   }
 }
 $("deleteBtn").onclick = () => {
   askConfirm("Delete this snippet?", "Cancel", "Delete", async () => {
-    await store.remove(selectedId);
-    await reload();
+    selfWriting = true;
+    try {
+      await store.remove(selectedId);
+      await reload();
+    } finally {
+      selfWriting = false;
+    }
     if (queued !== null) { startAdd(); return; }
     endAddMode();
     setEditor("none", null);
@@ -259,7 +303,24 @@ async function applyPendingNew() {
 if (view === "window") {
   chrome.storage.session.onChanged.addListener((c) => { if (c.pendingNew?.newValue) applyPendingNew(); });
 }
-chrome.storage.onChanged.addListener((_c, area) => { if (area === "local") reload(); });
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== "local") return;
+  await reload();
+  if (!changes.meta || selfWriting || mode !== "edit" || !loadedMeta || deletedExternally) return;
+  const current = metas.find((m) => m.id === selectedId);
+  const kind = classifyExternalChange(loadedMeta, current, isDirty());
+  if (kind === "refresh") {
+    const s = await store.get(selectedId);
+    if (s) setEditor("edit", s);
+  } else if (kind === "notice-changed") {
+    loadedMeta = { ...loadedMeta, modified: current.modified };
+    showNotice("Changed on another device. Save will overwrite it.");
+  } else if (kind === "notice-deleted") {
+    deletedExternally = true;
+    showNotice("Deleted on another device. Save will re-create it.");
+    updateSaveState();
+  }
+});
 let tagsPanel = null;
 function showTagsPanel() {
   dropQueued();
@@ -270,6 +331,16 @@ function showTagsPanel() {
   tagsPanel.render();
 }
 $("tagsBtn").onclick = () => guardUnsaved(showTagsPanel);
+let syncPanel = null;
+function showSyncPanel() {
+  dropQueued();
+  endAddMode();
+  setEditor("none", null);
+  $("placeholder").hidden = true;
+  $("syncPanel").hidden = false;
+  syncPanel.render();
+}
+$("syncBtn").onclick = () => guardUnsaved(showSyncPanel);
 $("openMgrBtn").onclick = async () => {
   try { await chrome.runtime.sendMessage({ type: "open-manager" }); } catch { /* window opens anyway or not */ }
   window.close();
@@ -281,5 +352,10 @@ setEditor("none", null); // both views edit; the list holds metadata only, conte
 if (view === "window") {
   mountDataMenu($("dataMount"), store, { onStatus: (t, isErr) => showStatus(t, isErr) });
   tagsPanel = mountTagsPanel($("tagsPanel"), store, { onChanged: reload });
+  syncPanel = mountSyncPanel($("syncPanel"), {
+    getHandle, putHandle, deleteHandle,
+    send: (msg) => chrome.runtime.sendMessage(msg),
+    onStatus: (t, isErr) => showStatus(t, isErr),
+  });
   await applyPendingNew(); // only the window consumes "Add as snippet" text
 }
