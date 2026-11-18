@@ -34,7 +34,7 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 | 2 | Tags | `tags: string[]`. Chips input with autocomplete (`<datalist>` or equivalent) from existing tags. Tag list derived from snippets, no registry. Case-insensitive match on save reuses the existing spelling. |
 | 3 | Paste flyout | In-page overlay built with `scripting.executeScript` and Shadow DOM. Permission `activeTab`. Not available on restricted pages (`chrome://`, Web Store), the Chrome location bar or DevTools panels (extension menus do not appear there). In a cross-origin iframe without host permission the palette opens on the top page instead and picking copies ("Copied. Press Ctrl+V"); with the opt-in site permission it inserts directly. Failures flash a `!` badge on the toolbar icon. |
 | 4 | Menu items | "Paste snippet": `contexts: ["editable"]`. "Add as snippet": `contexts: ["selection"]`. "Open Snippets": `contexts: ["all"]`. Selection inside a field shows both Add and Paste. Paste over a selection replaces it. |
-| 5 | Manager surface | `chrome.windows.create({type: "popup"})`, about 600 x 445 px, same HTML page as the toolbar popup but a different view (`?view=window`; see 5.1). Selection passed via `storage.session` (`pendingNew`). Toolbar icon uses `default_popup` (list-only view). |
+| 5 | Manager surface | `chrome.windows.create({type: "popup"})`, about 600 x 445 px, same HTML page as the toolbar popup but a different view (`?view=window`; see 5.1). Selection passed via `storage.session` (`pendingNew`). Toolbar icon uses `default_popup` (list + editor view, no Data/Tags). |
 | 6 | Name rules | Name required. Unique, case-insensitive. Inline error on duplicate, no overwrite. Content required. No max length. |
 | 7 | Search | Case-insensitive substring on name, content, tags. 200 ms debounce. No minimum length. Tag dropdown filter in manager combines with search (AND). |
 | 8 | List | Alphabetical by name, case-insensitive. Row = name + first 60 chars of content, newlines as spaces. Palette uses the same order. |
@@ -62,11 +62,11 @@ Optional (opt-in per site, `optional_host_permissions`: `https://*/*`, `http://*
 ### 5.1 Manager (mockup `snippets_main.png`, with deltas; reworked 2026-11-17)
 Two views of the same page (`popup/popup.html`):
 - **Window view** (`?view=window`, opened by "Open Snippets", "Add as snippet" and the toolbar popup's "Open manager" button), fixed 600 x 445 px content. Layout never moves.
-- **Toolbar popup** (no parameter, 360 x 445 px): list only (search, tag filter, list, "Open manager"). A click on a row copies the content, shows "Copied!" and closes the popup.
+- **Toolbar popup** (no parameter, 600 x 445 px): the same list and editor as the window (updated 2026-11-18; the content of one snippet is loaded on select, never the library). No Data or Tags buttons and no Close; an "Open manager" button replaces them, because a toolbar popup closes on focus loss (file picker, click outside) and would drop unsaved edits during Import/Restore. The window opens centered on the last focused browser window (a service worker cannot read the mouse position). The row Copy button copies and closes the popup.
 
 Window view layout:
 - Top bar: title, search box, tag filter dropdown, Close.
-- Left wrapper: snippet list (name + preview) with New and Delete under it. The name is underlined: a click copies the content and shows "Copied!" in place of the name; a click on the rest of the row selects the snippet.
+- Left wrapper: snippet list (name + preview) with New and Delete under it. Each row has a small Copy button (both views): it copies the content and shows "Copied!" on the button (the toolbar popup then closes); a click on the rest of the row selects the snippet.
 - Right wrapper (editable; same border/radius/padding as the left): Name, tag chips, "Content" label with a "Copy content" link (copies the text area's current text, same "Copied!" feedback), text area, Save under the text area.
 - Save is disabled until name, tags or content differ from what was loaded (New mode: enabled once anything is typed; prefilled "Add as snippet" is enabled).
 - Footer (below the wrappers): Data menu (opens upward) and Tags buttons on the left; inline confirmations (Delete, unsaved changes) on the right. No `confirm()` dialog.

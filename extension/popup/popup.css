@@ -34,9 +34,11 @@ button.primary { background: var(--accent); color: var(--accent-fg); border-colo
 .left { width: 220px; flex: none; gap: 6px; }
 .btnrow { display: flex; gap: 6px; justify-content: space-between; flex: none; }
 .list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
-.list li { padding: 4px 6px; border: 1px solid var(--border); background: var(--bg); margin-bottom: 3px; cursor: pointer; border-radius: 3px; }
+.list li { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border: 1px solid var(--border); background: var(--bg); margin-bottom: 3px; cursor: pointer; border-radius: 3px; }
 .list li.sel { background: var(--sel); }
-.list .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: top; text-decoration: underline; cursor: pointer; }
+.list .txt { flex: 1; min-width: 0; }
+.list .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list .copybtn { flex: none; font-size: 11px; padding: 1px 8px; min-width: 52px; }
 .list .p { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .right { flex: 1; min-width: 0; }
 .placeholder { margin: auto; color: var(--muted); }
@@ -66,15 +68,10 @@ button.primary { background: var(--accent); color: var(--accent-fg); border-colo
 .foot { display: flex; align-items: center; justify-content: space-between; }
 .row.confirm { margin-left: auto; }
 
-/* Toolbar popup: list only. The window view (?view=window) keeps the full layout. */
-body[data-view="toolbar"] { width: 360px; }
-body[data-view="toolbar"] .right,
-body[data-view="toolbar"] .btnrow,
-body[data-view="toolbar"] .foot,
+/* Toolbar popup (no ?view=window): same list + editor, but no Data/Tags/Close; "Open manager" instead. */
 body[data-view="toolbar"] #closeBtn,
-body[data-view="toolbar"] #title { display: none; }
-body[data-view="toolbar"] .left { width: auto; flex: 1; }
-body[data-view="toolbar"] .main { padding-bottom: 10px; }
+body[data-view="toolbar"] #dataMount,
+body[data-view="toolbar"] #tagsBtn { display: none; }
 body[data-view="window"] #openMgrBtn { display: none; }
 
 .tagspanel { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; flex: 1; }

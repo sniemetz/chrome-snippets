@@ -54,13 +54,21 @@ async function renderList() {
   for (const m of shown) {
     const li = document.createElement("li");
     li.dataset.id = m.id;
+    const txt = document.createElement("div");
+    txt.className = "txt";
     const n = document.createElement("div");
     n.className = "n";
     n.textContent = m.name;
     const p = document.createElement("div");
     p.className = "p";
     p.textContent = m.preview;
-    li.append(n, p);
+    txt.append(n, p);
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "copybtn";
+    copy.textContent = "Copy";
+    copy.title = "Copy content to the clipboard";
+    li.append(txt, copy);
     ul.append(li);
   }
   markSelected();
@@ -151,12 +159,11 @@ function guardUnsaved(proceed) {
 $("list").addEventListener("click", (e) => {
   const li = e.target.closest("li");
   if (!li) return;
-  if (view === "toolbar") { // no editor here: any click on a row copies, then the popup closes
-    copyWithFeedback(store, li.dataset.id, li.querySelector(".n"), { closeAfter: true });
+  const copyBtn = e.target.closest(".copybtn");
+  if (copyBtn) { // Copy button = copy (and close the toolbar popup); the rest of the row selects
+    copyWithFeedback(store, li.dataset.id, copyBtn, { closeAfter: view === "toolbar" });
     return;
   }
-  const nameEl = e.target.closest(".n");
-  if (nameEl) { copyWithFeedback(store, li.dataset.id, nameEl); return; } // name = copy, rest of row = select
   if (li.dataset.id === selectedId) return;
   guardUnsaved(async () => {
     dropQueued();
@@ -265,9 +272,9 @@ $("openMgrBtn").onclick = async () => {
 
 // ---------- boot ----------
 await reload();
+setEditor("none", null); // both views edit; the list holds metadata only, content loads per snippet
 if (view === "window") {
   mountDataMenu($("dataMount"), store, { onStatus: (t, isErr) => showStatus(t, isErr) });
   tagsPanel = mountTagsPanel($("tagsPanel"), store, { onChanged: reload });
-  setEditor("none", null);
   await applyPendingNew(); // only the window consumes "Add as snippet" text
 }

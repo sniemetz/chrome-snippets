@@ -14,8 +14,8 @@ Chrome extension (Manifest V3). Save, search, and paste text snippets.
 
 ## Use
 
-- Toolbar icon: list-only popup (search, tag filter). Click a snippet to copy it ("Copied!") and close the popup. **Open manager** opens the full window.
-- Manager window (right-click > **Open Snippets**, or "Open manager"): click an underlined name to copy; click the rest of the row to edit. **Copy content** copies the text in the editor. **Save** is enabled only after a change.
+- Toolbar icon: popup with the list and the editor (same 600 x 445 layout as the window). Each row has a **Copy** button: it copies the content, shows "Copied!" and closes the popup. Click the rest of the row to edit. The popup has no Data or Tags buttons: **Open manager** opens the full window (centered on your browser window). A toolbar popup closes when it loses focus, so unsaved edits there are lost.
+- Manager window (right-click > **Open Snippets**, or "Open manager"): same list with a **Copy** button per row (copies and shows "Copied!"). **Copy content** copies the text in the editor. **Save** is enabled only after a change.
 - **Data** menu (bottom left): Export, Import (adds, skips existing names), Restore (replaces all). **Tags**: rename or delete a tag across all snippets.
 - Right-click in an editable field: **Paste snippet** (opens the palette).
 - Right-click in an editable field inside an iframe from another site (for example Workfront inside a wrapper page): Paste snippet opens the palette on the top page and copies the snippet; press Ctrl+V. For direct insertion right-click inside that iframe and use **Allow Snippets on this site** once (the item appears only inside iframes) (Chrome asks for permission for that site only). Remove it at `chrome://extensions` > Snippet Saver > Details > Site access.
