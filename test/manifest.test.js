@@ -5,9 +5,9 @@ import { readFileSync } from "node:fs";
 const root = new URL("../extension/", import.meta.url);
 const manifest = () => JSON.parse(readFileSync(new URL("manifest.json", root), "utf8"));
 
-test("permissions are exactly the six from the spec", () => {
+test("permissions are the six from the spec plus alarms and idle (folder sync)", () => {
   assert.deepEqual([...manifest().permissions].sort(), [
-    "activeTab", "clipboardWrite", "contextMenus", "scripting", "storage", "unlimitedStorage",
+    "activeTab", "alarms", "clipboardWrite", "contextMenus", "idle", "scripting", "storage", "unlimitedStorage",
   ]);
 });
 
