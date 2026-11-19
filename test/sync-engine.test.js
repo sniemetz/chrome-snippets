@@ -252,3 +252,12 @@ test("a file that cannot be written is skipped and counted; the run continues", 
   assert.deepEqual(Object.keys((await c.state.get()).synced).sort(), ["a", "c"]);
   assert.match((await c.state.get()).message, /1 files could not be synced/);
 });
+
+test("permission lost during the last write: the run pauses instead of reporting ok", async () => {
+  const c = await setup({ local: [sn("a")] });
+  c.folder.failWriteOn = "a";
+  c.folder.permLostAfter = 2; // start check and pre-action check pass, the check after the failure does not
+  const r = await run(c, { firstLink: true });
+  assert.equal(r.status, "paused");
+  assert.equal((await c.state.get()).status, "paused");
+});

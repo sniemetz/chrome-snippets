@@ -123,12 +123,14 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
         else if (type === "deleteLocal") { await store.removeMany([a.id]); byId.delete(a.id); delete synced[a.id]; counts.deletedLocal++; }
         else if (type === "deleteFile") { await folder.remove(a.id); delete synced[a.id]; counts.deletedFiles++; }
         else if (type === "forget") delete synced[a.id];
-        if (++done % SAVE_EVERY === 0) await state.set({ synced });
+        done++;
       } catch (err) {
-        // One bad file never stops the run. A lost permission does: the next iteration notices and pauses.
-        if (!(err instanceof FolderReadError) && (await folder.permission()) === "granted") console.warn("Sync: skipped", a.id, err);
+        // One bad file never stops the run, but a lost permission does (it also explains a failed write).
+        if ((await folder.permission()) !== "granted") { status = "paused"; message = "Folder access must be re-allowed"; break; }
+        if (!(err instanceof FolderReadError)) console.warn("Sync: skipped", a.id, err);
         counts.skipped++;
       }
+      if (done % SAVE_EVERY === 0 && done > 0) await state.set({ synced });
     }
 
     if (firstLink && status === "ok") {
