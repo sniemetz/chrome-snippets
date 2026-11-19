@@ -6,7 +6,7 @@ import { centeredPosition } from "../lib/position.js";
 import { createSyncState, INTERVALS } from "../lib/sync-state.js";
 import { createFolder } from "../lib/folder.js";
 import { runSync } from "../lib/sync-engine.js";
-import { getHandle, deleteHandle } from "../popup/handle-store.js";
+import { getHandle, deleteHandle, promotePendingHandle } from "../popup/handle-store.js";
 
 const store = createStore(chrome.storage.local);
 const syncState = createSyncState(chrome.storage.local);
@@ -118,7 +118,7 @@ async function handleSyncMessage(msg) {
     }
     case "sync-link":
       return exclusive(async () => {
-        const dir = await getHandle();
+        const dir = await promotePendingHandle(); // switch folder and state together, inside the queue
         if (!dir) return { ok: false };
         await syncState.clear();
         await syncState.set({ linked: true, folderName: dir.name });

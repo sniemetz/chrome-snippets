@@ -9,7 +9,8 @@ import { copyWithFeedback, copyTextWithFeedback } from "./copy.js";
 import { mountTagsPanel } from "./tags-panel.js";
 import { mountSyncPanel } from "./sync-panel.js";
 import { createSyncState, needsAttention } from "../lib/sync-state.js";
-import { getHandle, putHandle, deleteHandle } from "./handle-store.js";
+// The panel's "putHandle" stores the picked folder as pending; the service worker activates it on sync-link.
+import { getHandle, putPendingHandle as putHandle, deleteHandle } from "./handle-store.js";
 
 const $ = (id) => document.getElementById(id);
 const view = viewFromSearch(location.search);

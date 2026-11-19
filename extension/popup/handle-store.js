@@ -27,6 +27,19 @@ async function tx(mode, fn) {
   }
 }
 
+const PENDING = "pending";
+
 export const putHandle = (handle) => tx("readwrite", (s) => s.put(handle, KEY));
+
+// A freshly picked folder waits here until the service worker, inside its queue, makes it the active one.
+// Handles cannot travel in runtime messages (JSON only), and queued syncs must keep using the old folder
+// together with the old sync state until the switch.
+export const putPendingHandle = (handle) => tx("readwrite", (s) => s.put(handle, PENDING));
+export async function promotePendingHandle() {
+  const handle = await tx("readonly", (s) => s.get(PENDING));
+  if (!handle) return undefined;
+  await tx("readwrite", (s) => { s.put(handle, KEY); return s.delete(PENDING); });
+  return handle;
+}
 export const getHandle = () => tx("readonly", (s) => s.get(KEY));
 export const deleteHandle = () => tx("readwrite", (s) => s.delete(KEY));
