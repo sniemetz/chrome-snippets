@@ -41,6 +41,8 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
 
   function statusText(st) {
     if (st.status === "error") return st.message || "Sync failed";
+    if (st.status === "needs-decision") return "Sync stopped: waiting for your decision";
+    if (st.status === "paused") return "Sync paused: folder access must be re-allowed";
     if (!st.lastSync) return "Not synced yet";
     const time = new Date(st.lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     return `Synced ${time} - ${Object.keys(st.synced).length} snippets`;
@@ -49,6 +51,9 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
   function banners(st, withCancel) {
     if (st.status === "paused") {
       root.append(row(el("span", { className: "err", textContent: "Folder access must be re-allowed" }), btn("Re-allow folder", reallow, { className: "primary" })));
+    }
+    if (st.status === "needs-decision" && withCancel && decisionDismissed) {
+      root.append(row(el("span", { className: "err", textContent: "Sync is stopped until you decide." }), btn("Decide...", () => { decisionDismissed = false; render(); })));
     }
     if (st.status === "needs-decision" && st.decision && !(withCancel && decisionDismissed)) {
       const n = st.decision.conflicts;

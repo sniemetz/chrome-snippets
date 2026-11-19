@@ -46,40 +46,51 @@ let debounceTimer;
 // "!" while sync needs the user (permission lost or a decision pending); otherwise empty.
 async function syncBadge() {
   const { linked, status } = await syncState.get();
-  const attention = linked && (status === "paused" || status === "needs-decision");
+  const attention = linked && (status === "paused" || status === "needs-decision" || status === "error");
   chrome.action.setBadgeText({ text: attention ? "!" : "" });
   if (attention) chrome.action.setBadgeBackgroundColor({ color: "#b91c1c" });
 }
 
 async function doSync(opts) {
-  const st = await syncState.get();
-  if (!st.linked) return;
   try {
-    const dir = await getHandle();
-    if (!dir) {
-      await syncState.set({ status: "error", message: "Folder handle is missing. Choose the folder again." });
-    } else {
-      await runSync({ store, folder: createFolder(dir), state: syncState, ...opts });
+    const st = await syncState.get();
+    if (!st.linked) return;
+    try {
+      const dir = await getHandle();
+      if (!dir) {
+        await syncState.set({ status: "error", message: "Folder handle is missing. Choose the folder again." });
+      } else {
+        await runSync({ store, folder: createFolder(dir), state: syncState, ...opts });
+      }
+    } catch (err) {
+      console.warn("Sync failed:", err);
+      await syncState.set({ status: "error", message: String(err?.message ?? err) });
     }
+    await syncBadge();
   } catch (err) {
-    console.warn("Sync failed:", err);
-    await syncState.set({ status: "error", message: String(err?.message ?? err) });
+    console.warn("Sync bookkeeping failed:", err);
   }
-  await syncBadge();
 }
 
-// One run at a time; several plain triggers waiting for the same slot collapse into one run.
+// Everything that touches sync state or the folder runs here, one task at a time. A failing task never
+// stops later ones.
+function exclusive(task) {
+  const run = chain.then(task);
+  chain = run.catch(() => {});
+  return run;
+}
+
+// Several plain triggers waiting for the same slot collapse into one run.
 function enqueue(opts = {}) {
   const plain = Object.keys(opts).length === 0;
   if (plain) {
     if (plainQueued) return chain;
     plainQueued = true;
   }
-  chain = chain.then(() => {
+  return exclusive(() => {
     if (plain) plainQueued = false;
     return doSync(opts);
   });
-  return chain;
 }
 
 async function ensureAlarm({ force = false } = {}) {
@@ -105,21 +116,24 @@ async function handleSyncMessage(msg) {
       await ensureAlarm({ force: true });
       return { ok: true };
     }
-    case "sync-link": {
-      const dir = await getHandle();
-      if (!dir) return { ok: false };
-      await syncState.clear();
-      await syncState.set({ linked: true, folderName: dir.name });
-      await ensureAlarm({ force: true });
-      await enqueue({ firstLink: true });
-      return { ok: true };
-    }
+    case "sync-link":
+      return exclusive(async () => {
+        const dir = await getHandle();
+        if (!dir) return { ok: false };
+        await syncState.clear();
+        await syncState.set({ linked: true, folderName: dir.name });
+        await ensureAlarm({ force: true });
+        await doSync({ firstLink: true });
+        return { ok: true };
+      });
     case "sync-unlink":
-      await syncState.clear();
-      await deleteHandle();
-      await chrome.alarms.clear(SYNC_ALARM);
-      await syncBadge();
-      return { ok: true };
+      return exclusive(async () => {
+        await syncState.clear();
+        await deleteHandle();
+        await chrome.alarms.clear(SYNC_ALARM);
+        await syncBadge();
+        return { ok: true };
+      });
     default:
       return { ok: false };
   }
