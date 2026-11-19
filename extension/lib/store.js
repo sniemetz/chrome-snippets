@@ -22,9 +22,20 @@ const toMeta = (s) => ({
   id: s.id, name: s.name, tags: s.tags, preview: preview(s.content), created: s.created, modified: s.modified,
 });
 
+// Every write is a read-modify-write of the whole `meta` list. The service worker (sync) and extension
+// pages both write, so writes are serialized: across contexts with Web Locks, else within this context.
+let memChain = Promise.resolve();
+const memLock = (fn) => {
+  const run = memChain.then(fn);
+  memChain = run.catch(() => {});
+  return run;
+};
+const defaultLock = (fn) => (globalThis.navigator?.locks ? navigator.locks.request("snippet-store", fn) : memLock(fn));
+const WRITES = ["add", "update", "remove", "renameTag", "deleteTag", "replaceAll", "addMany", "upsertMany", "removeMany"];
+
 export function createStore(
   area = globalThis.chrome?.storage?.local,
-  { now = Date.now, uuid = () => crypto.randomUUID() } = {},
+  { now = Date.now, uuid = () => crypto.randomUUID(), lock = defaultLock } = {},
 ) {
   const readMeta = async () => (await area.get(META))[META] ?? [];
 
@@ -46,7 +57,7 @@ export function createStore(
     }
   }
 
-  return {
+  const api = {
     listMeta: async () => sortSnippets(await readMeta()),
 
     // Full snippets. Reads ALL content: used only by Export.
@@ -173,4 +184,9 @@ export function createStore(
       await area.remove(gone);
     },
   };
+  for (const name of WRITES) {
+    const fn = api[name];
+    api[name] = (...args) => lock(() => fn(...args));
+  }
+  return api;
 }

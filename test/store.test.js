@@ -245,3 +245,24 @@ test("removeMany deletes metas and content keys, ignores unknown ids", async () 
   assert.equal("c:p1" in area.data, false);
   assert.equal("c:p2" in area.data, true);
 });
+
+test("concurrent writes do not lose updates (add + upsertMany + removeMany + renameTag)", async () => {
+  const { store } = setup();
+  const a = await store.add({ name: "a", content: "x", tags: ["t"] });
+  await Promise.all([
+    store.add({ name: "b", content: "y", tags: [] }),
+    store.upsertMany([sn("p1", "p")]),
+    store.renameTag("t", "u"),
+    store.upsertMany([sn("p2", "q")]),
+    store.removeMany(["nope"]),
+  ]);
+  const metas = await store.listMeta();
+  assert.deepEqual(metas.map((m) => m.name).sort(), ["a", "b", "p", "q"]);
+  assert.deepEqual(metas.find((m) => m.id === a.id).tags, ["u"]);
+});
+test("a failing write does not block later writes", async () => {
+  const { store } = setup();
+  await assert.rejects(store.add({ name: "", content: "x", tags: [] }));
+  await store.add({ name: "ok", content: "x", tags: [] });
+  assert.equal((await store.listMeta()).length, 1);
+});
