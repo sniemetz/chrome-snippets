@@ -1,5 +1,9 @@
 import { normalizeTags, allTags } from "./tags.js";
 
+// Ids from files become sync file names (<id>.json): only canonical UUIDs are trusted.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const validId = (id) => typeof id === "string" && UUID_RE.test(id);
+
 export function exportJson(snippets) {
   const out = snippets.map(({ id, name, content, tags, created, modified }) => ({
     id, name, content, tags, created, modified,
@@ -29,7 +33,7 @@ export function parseFile(text) {
     if (typeof e.content !== "string" || !e.content) return bad("content missing");
     if (!Array.isArray(e.tags) || e.tags.some((t) => typeof t !== "string")) return bad("tags must be a list of text");
     snippets.push({
-      ...(typeof e.id === "string" && e.id ? { id: e.id } : {}),
+      ...(validId(e.id) ? { id: e.id } : {}),
       name: e.name.trim(),
       content: e.content,
       tags: e.tags,
@@ -44,7 +48,7 @@ export function parseFile(text) {
 function build(entries, known, { now, uuid }, takenIds = new Set()) {
   const t = now();
   return entries.map((e) => {
-    const id = e.id && !takenIds.has(e.id) ? e.id : uuid();
+    const id = validId(e.id) && !takenIds.has(e.id) ? e.id : uuid();
     takenIds.add(id);
     return {
       id,

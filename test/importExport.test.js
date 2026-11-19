@@ -9,15 +9,15 @@ const opts = { now: () => 5000, uuid: () => `id${++n}` };
 const sn = (name, content = "x", tags = []) => ({ id: "i", name, content, tags, created: 1, modified: 2 });
 
 test("round trip: parseFile(exportJson(x)) equals x including ids", () => {
-  const x = [{ ...sn("a", "c1", ["t"]), id: "id-a" }, { ...sn("b", "c2"), id: "id-b" }];
+  const x = [{ ...sn("a", "c1", ["t"]), id: "aaaaaaaa-0000-4000-8000-000000000001" }, { ...sn("b", "c2"), id: "bbbbbbbb-0000-4000-8000-000000000002" }];
   const r = parseFile(exportJson(x));
   assert.equal(r.ok, true);
   assert.deepEqual(r.snippets, x);
 });
 test("exportJson has version 1 and keeps the id", () => {
-  const o = JSON.parse(exportJson([{ ...sn("a"), id: "id-a" }]));
+  const o = JSON.parse(exportJson([{ ...sn("a"), id: "aaaaaaaa-0000-4000-8000-000000000001" }]));
   assert.equal(o.version, 1);
-  assert.equal(o.snippets[0].id, "id-a");
+  assert.equal(o.snippets[0].id, "aaaaaaaa-0000-4000-8000-000000000001");
 });
 test("parseFile: an old export without ids still parses (no id)", () => {
   const r = parseFile('{"version":1,"snippets":[{"name":"a","content":"x","tags":[]}]}');
@@ -26,15 +26,15 @@ test("parseFile: an old export without ids still parses (no id)", () => {
 });
 test("restoreList keeps ids; missing or duplicate ids get a fresh one", () => {
   const incoming = [
-    { ...sn("a"), id: "keep-1" }, { ...sn("b"), id: "keep-1" }, { ...sn("c"), id: undefined }, { ...sn("d"), id: "keep-2" },
+    { ...sn("a"), id: "aaaaaaaa-0000-4000-8000-000000000001" }, { ...sn("b"), id: "aaaaaaaa-0000-4000-8000-000000000001" }, { ...sn("c"), id: undefined }, { ...sn("d"), id: "bbbbbbbb-0000-4000-8000-000000000002" },
   ];
   const out = restoreList(incoming, { now: () => 5000, uuid: () => "fresh" });
-  assert.deepEqual(out.map((s) => s.id), ["keep-1", "fresh", "fresh", "keep-2"]);
+  assert.deepEqual(out.map((s) => s.id), ["aaaaaaaa-0000-4000-8000-000000000001", "fresh", "fresh", "bbbbbbbb-0000-4000-8000-000000000002"]);
 });
 test("mergeAdditive: an incoming id that already exists gets a fresh id", () => {
-  const existing = [{ ...sn("Foo"), id: "same" }];
-  const r = mergeAdditive(existing, [{ ...sn("Bar"), id: "same" }, { ...sn("Baz"), id: "new" }], { now: () => 5000, uuid: () => "fresh" });
-  assert.deepEqual(r.snippets.map((s) => s.id), ["same", "fresh", "new"]);
+  const existing = [{ ...sn("Foo"), id: "aaaaaaaa-0000-4000-8000-000000000001" }];
+  const r = mergeAdditive(existing, [{ ...sn("Bar"), id: "aaaaaaaa-0000-4000-8000-000000000001" }, { ...sn("Baz"), id: "cccccc00-0000-4000-8000-000000000003" }], { now: () => 5000, uuid: () => "fresh" });
+  assert.deepEqual(r.snippets.map((s) => s.id), ["aaaaaaaa-0000-4000-8000-000000000001", "fresh", "cccccc00-0000-4000-8000-000000000003"]);
 });
 test("exportFilename uses local date", () => {
   assert.equal(exportFilename(new Date(2026, 10, 16)), "snippets-2026-11-16.json");
@@ -79,4 +79,13 @@ test("restoreList assigns ids, dedupes names first-wins, unifies tag spelling", 
   assert.deepEqual(r.map((x) => x.name), ["a", "b"]);
   assert.deepEqual(r[1].tags, ["Work"]);
   assert.ok(r.every((x) => typeof x.id === "string"));
+});
+
+test("parseFile/restoreList/mergeAdditive ignore ids that are not UUIDs (they become file names)", () => {
+  const r = parseFile('{"version":1,"snippets":[{"id":"../evil","name":"a","content":"x","tags":[]},{"id":"__proto__","name":"b","content":"x","tags":[]}]}');
+  assert.equal(r.ok, true);
+  const out = restoreList(r.snippets.map((s) => ({ ...s, id: s.id ?? "../evil" })), { now: () => 5000, uuid: () => "fresh" });
+  assert.deepEqual(out.map((s) => s.id), ["fresh", "fresh"]);
+  const m = mergeAdditive([], [{ ...sn("c"), id: "../x" }], { now: () => 5000, uuid: () => "fresh2" });
+  assert.equal(m.snippets[0].id, "fresh2");
 });
