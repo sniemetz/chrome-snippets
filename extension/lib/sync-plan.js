@@ -31,7 +31,8 @@ export function planSync({ local, folder, synced, firstLink = false }) {
     } else if (s) add("forget", id);
   }
 
-  const conflicts = actions.filter((a) => a.type === "deleteLocal" || a.type === "deleteFile" || a.type === "conflict").length;
+  // A "conflict" with no synced record is an unfinished first link (nothing was ever compared): not a data-loss risk.
+  const conflicts = actions.filter((a) => a.type === "deleteLocal" || a.type === "deleteFile" || (a.type === "conflict" && synced[a.id])).length;
   const threshold = Math.max(5, 0.2 * Math.max(local.length, folder.length));
   let reason = null;
   if (!firstLink) {

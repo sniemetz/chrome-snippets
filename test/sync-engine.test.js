@@ -81,7 +81,8 @@ test("synced is updated per snippet: a failure on the third write keeps the firs
   const c = await setup({ local: [sn("a"), sn("b"), sn("c")] });
   c.folder.failWriteOn = "c";
   const r = await run(c, { firstLink: true });
-  assert.equal(r.status, "error");
+  assert.equal(r.status, "ok");
+  assert.equal(r.counts.skipped, 1);
   assert.deepEqual(Object.keys((await c.state.get()).synced).sort(), ["a", "b"]);
 });
 
@@ -124,7 +125,7 @@ test("an unreadable file is skipped, counted, kept in synced and retried; its lo
   assert.equal(r.counts.deletedLocal, 0);
   assert.ok(await c.store.get("a"));
   assert.deepEqual((await c.state.get()).synced.a, before);
-  assert.match((await c.state.get()).message, /2 files could not be read/);
+  assert.match((await c.state.get()).message, /2 files could not be synced/);
   c.folder.files.get("a").unreadable = false;
   c.folder.files.get("x").unreadable = false;
   const r2 = await run(c);
@@ -230,4 +231,24 @@ test("a second run directly after a run writes nothing and reads no content", as
   assert.deepEqual(c.folder.calls, { read: [], write: [], remove: [] });
   assert.deepEqual(contentKeys(c.area), []);
   assert.deepEqual(r.counts, { pushed: 0, pulled: 0, deletedLocal: 0, deletedFiles: 0, renamed: 0, skipped: 0 });
+});
+
+// ---- review fixes ----
+test("synced is saved periodically during a long run, not only at the end", async () => {
+  const c = await setup({ local: names(60).map((i) => sn(i)) });
+  let saves = 0;
+  const orig = c.state.set;
+  c.state.set = (patch) => { if (patch.synced) saves++; return orig(patch); };
+  await run(c, { firstLink: true });
+  assert.ok(saves >= 3, `expected at least 3 saves, got ${saves}`);
+});
+test("a file that cannot be written is skipped and counted; the run continues", async () => {
+  const c = await setup({ local: [sn("a"), sn("b"), sn("c")] });
+  c.folder.failWriteOn = "b";
+  const r = await run(c, { firstLink: true });
+  assert.equal(r.status, "ok");
+  assert.equal(r.counts.skipped, 1);
+  assert.equal(r.counts.pushed, 2);
+  assert.deepEqual(Object.keys((await c.state.get()).synced).sort(), ["a", "c"]);
+  assert.match((await c.state.get()).message, /1 files could not be synced/);
 });

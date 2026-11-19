@@ -76,3 +76,11 @@ test("plain pushes never count", () => {
   assert.equal(r.guard.tripped, false);
   assert.equal(r.guard.conflicts, 0);
 });
+
+test("conflicts with no synced record (unfinished first link) do not trip the guard", () => {
+  const ids = many(30);
+  const r = run(ids.map((i) => L(i, 2)), ids.map((i) => F(i, 11)), {});
+  assert.equal(r.actions.filter((a) => a.type === "conflict").length, 30);
+  assert.equal(r.guard.conflicts, 0);
+  assert.equal(r.guard.tripped, false);
+});

@@ -3,6 +3,7 @@ import { decideClash } from "./name-clash.js";
 import { FolderReadError } from "./folder.js";
 
 const lc = (s) => s.toLowerCase();
+const SAVE_EVERY = 25; // persist `synced` this often, so a stopped run does not look like mass conflicts
 const emptyCounts = () => ({ pushed: 0, pulled: 0, deletedLocal: 0, deletedFiles: 0, renamed: 0, skipped: 0 });
 
 // One sync run. store/folder/state are interfaces (see store.js, folder.js, sync-state.js).
@@ -18,6 +19,7 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
 
   let summary = null;
   let status = "ok";
+  let done = 0;
   let message = "";
   try {
     const listing = await folder.list();
@@ -121,8 +123,10 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
         else if (type === "deleteLocal") { await store.removeMany([a.id]); byId.delete(a.id); delete synced[a.id]; counts.deletedLocal++; }
         else if (type === "deleteFile") { await folder.remove(a.id); delete synced[a.id]; counts.deletedFiles++; }
         else if (type === "forget") delete synced[a.id];
+        if (++done % SAVE_EVERY === 0) await state.set({ synced });
       } catch (err) {
-        if (!(err instanceof FolderReadError)) throw err;
+        // One bad file never stops the run. A lost permission does: the next iteration notices and pauses.
+        if (!(err instanceof FolderReadError) && (await folder.permission()) === "granted") console.warn("Sync: skipped", a.id, err);
         counts.skipped++;
       }
     }
@@ -130,7 +134,7 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
     if (firstLink && status === "ok") {
       summary = `${counts.pulled} added from the folder, ${counts.pushed} pushed` + (counts.renamed ? `, ${counts.renamed} renamed` : "");
     }
-    if (status === "ok" && counts.skipped) message = `${counts.skipped} files could not be read, will retry`;
+    if (status === "ok" && counts.skipped) message = `${counts.skipped} files could not be synced, will retry`;
   } catch (err) {
     status = "error";
     message = String(err?.message ?? err);
