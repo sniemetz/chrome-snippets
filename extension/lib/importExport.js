@@ -1,8 +1,8 @@
 import { normalizeTags, allTags } from "./tags.js";
 
 export function exportJson(snippets) {
-  const out = snippets.map(({ name, content, tags, created, modified }) => ({
-    name, content, tags, created, modified,
+  const out = snippets.map(({ id, name, content, tags, created, modified }) => ({
+    id, name, content, tags, created, modified,
   }));
   return JSON.stringify({ version: 1, snippets: out }, null, 2);
 }
@@ -29,6 +29,7 @@ export function parseFile(text) {
     if (typeof e.content !== "string" || !e.content) return bad("content missing");
     if (!Array.isArray(e.tags) || e.tags.some((t) => typeof t !== "string")) return bad("tags must be a list of text");
     snippets.push({
+      ...(typeof e.id === "string" && e.id ? { id: e.id } : {}),
       name: e.name.trim(),
       content: e.content,
       tags: e.tags,
@@ -39,16 +40,21 @@ export function parseFile(text) {
   return { ok: true, snippets };
 }
 
-function build(entries, known, { now, uuid }) {
+// Keeps an entry's own id (so sync sees the same snippet again) unless it is missing or already taken.
+function build(entries, known, { now, uuid }, takenIds = new Set()) {
   const t = now();
-  return entries.map((e) => ({
-    id: uuid(),
-    name: e.name,
-    content: e.content,
-    tags: normalizeTags(e.tags, known),
-    created: e.created || t,
-    modified: e.modified || t,
-  }));
+  return entries.map((e) => {
+    const id = e.id && !takenIds.has(e.id) ? e.id : uuid();
+    takenIds.add(id);
+    return {
+      id,
+      name: e.name,
+      content: e.content,
+      tags: normalizeTags(e.tags, known),
+      created: e.created || t,
+      modified: e.modified || t,
+    };
+  });
 }
 
 function dedupe(entries, taken) {
@@ -67,7 +73,7 @@ function dedupe(entries, taken) {
 export function mergeAdditive(existing, incoming, opts) {
   const { kept, skipped } = dedupe(incoming, existing.map((s) => s.name.toLowerCase()));
   const known = allTags(existing);
-  const added = build(kept, known, opts);
+  const added = build(kept, known, opts, new Set(existing.map((s) => s.id)));
   // tags added by earlier incoming entries also set spelling for later ones
   const all = [...existing];
   for (const s of added) {

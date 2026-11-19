@@ -8,16 +8,33 @@ let n = 0;
 const opts = { now: () => 5000, uuid: () => `id${++n}` };
 const sn = (name, content = "x", tags = []) => ({ id: "i", name, content, tags, created: 1, modified: 2 });
 
-test("round trip: parseFile(exportJson(x)) equals x minus ids", () => {
-  const x = [sn("a", "c1", ["t"]), sn("b", "c2")];
+test("round trip: parseFile(exportJson(x)) equals x including ids", () => {
+  const x = [{ ...sn("a", "c1", ["t"]), id: "id-a" }, { ...sn("b", "c2"), id: "id-b" }];
   const r = parseFile(exportJson(x));
   assert.equal(r.ok, true);
-  assert.deepEqual(r.snippets, x.map(({ id, ...rest }) => rest));
+  assert.deepEqual(r.snippets, x);
 });
-test("exportJson has version 1 and no id", () => {
-  const o = JSON.parse(exportJson([sn("a")]));
+test("exportJson has version 1 and keeps the id", () => {
+  const o = JSON.parse(exportJson([{ ...sn("a"), id: "id-a" }]));
   assert.equal(o.version, 1);
-  assert.equal(o.snippets[0].id, undefined);
+  assert.equal(o.snippets[0].id, "id-a");
+});
+test("parseFile: an old export without ids still parses (no id)", () => {
+  const r = parseFile('{"version":1,"snippets":[{"name":"a","content":"x","tags":[]}]}');
+  assert.equal(r.ok, true);
+  assert.equal(r.snippets[0].id, undefined);
+});
+test("restoreList keeps ids; missing or duplicate ids get a fresh one", () => {
+  const incoming = [
+    { ...sn("a"), id: "keep-1" }, { ...sn("b"), id: "keep-1" }, { ...sn("c"), id: undefined }, { ...sn("d"), id: "keep-2" },
+  ];
+  const out = restoreList(incoming, { now: () => 5000, uuid: () => "fresh" });
+  assert.deepEqual(out.map((s) => s.id), ["keep-1", "fresh", "fresh", "keep-2"]);
+});
+test("mergeAdditive: an incoming id that already exists gets a fresh id", () => {
+  const existing = [{ ...sn("Foo"), id: "same" }];
+  const r = mergeAdditive(existing, [{ ...sn("Bar"), id: "same" }, { ...sn("Baz"), id: "new" }], { now: () => 5000, uuid: () => "fresh" });
+  assert.deepEqual(r.snippets.map((s) => s.id), ["same", "fresh", "new"]);
 });
 test("exportFilename uses local date", () => {
   assert.equal(exportFilename(new Date(2026, 10, 16)), "snippets-2026-11-16.json");
