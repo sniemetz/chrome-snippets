@@ -18,7 +18,7 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 - Light and dark theme (system).
 
 ### Backlog (not in v1)
-- ~~Cloud sync~~ replaced by folder sync (see `docs/superpowers/specs/2026-11-18-folder-sync-design.md`). Drive API sync stays out of scope.
+- ~~Cloud sync~~ replaced by folder sync (`docs/superpowers/specs/2026-11-18-folder-sync-design.md`) and then Dropbox sync (`docs/superpowers/specs/2026-11-21-cloud-sync-design.md`). Drive API sync stays out of scope.
 - Keyboard navigation in the toolbar popup (search autofocus, focusable rows, Enter copies).
 - Tag registry and options page (configured tag dropdown). A simple tag manager (rename, delete) is done in the window view.
 - CSV export/import.
@@ -51,10 +51,11 @@ Chrome extension (Manifest V3). Save text snippets with name and tags. Search th
 | 19 | Icons | Placeholder icon made in the build. Sizes 16, 32, 48, 128 in `extension/icons/`. |
 | 20 | Distribution | Load unpacked. |
 | 21 | Folder sync | Two-way sync with one user-picked folder of `<id>.json` files, run by the service worker. Design, guard and conflict rules: `docs/superpowers/specs/2026-11-18-folder-sync-design.md`. |
+| 22 | Dropbox sync | Second backend: Dropbox app folder, `/<uuid>.json` per snippet, OAuth PKCE via `chrome.identity.launchWebAuthFlow`, tokens in `chrome.storage.local` (`dropboxAuth`), no restart prompt. Folder backend unchanged (removal is a separate, gated follow-up). Design: `docs/superpowers/specs/2026-11-21-cloud-sync-design.md`. Setup: README. |
 
 ## 4. Permissions
 
-`contextMenus`, `storage`, `unlimitedStorage`, `activeTab`, `scripting`, `clipboardWrite`, plus `alarms` and `idle` (folder sync: periodic runs and wake-up detection). No required host permissions, no install warning. No content scripts.
+`contextMenus`, `storage`, `unlimitedStorage`, `activeTab`, `scripting`, `clipboardWrite`, plus `alarms` and `idle` (sync: periodic runs and wake-up detection) and `identity` (Dropbox sign-in). Required host permissions: `https://api.dropboxapi.com/*`, `https://content.dropboxapi.com/*` (Dropbox sync only). No content scripts.
 
 Optional (opt-in per site, `optional_host_permissions`: `https://*/*`, `http://*/*`): requested at runtime for one origin through the menu item "Allow Snippets on this site". Needed to insert into a cross-origin iframe (UI rework, 2026-11-17: Workfront inside an Adobe wrapper). Remove a granted site at `chrome://extensions` > Snippet Saver > Details > Site access.
 

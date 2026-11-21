@@ -1,5 +1,7 @@
 # Folder sync - design
 
+> Note (2026-11-21): a Dropbox backend now exists alongside this one; see `2026-11-21-cloud-sync-design.md`. This folder design is unchanged and still applies to the folder backend.
+
 Status: draft for approval, 2026-11-18. Extends `docs/spec.md` (replaces the "Cloud sync" backlog item). Decisions below were made by the user in conversation on 2026-11-18 unless marked "builder's call".
 
 ## 1. Intent

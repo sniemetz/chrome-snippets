@@ -24,6 +24,34 @@ Chrome extension (Manifest V3). Save, search, and paste text snippets.
 
 ## Sync between devices
 
+Two backends: **Dropbox** (sign-in, no local folder) and **Folder** (your own tool syncs a local folder). Pick one in manager > **Sync**. Design: `docs/superpowers/specs/2026-11-21-cloud-sync-design.md`.
+
+### Dropbox
+
+- Sign-in: **Sync** > **Sign in to Dropbox**. Uses `chrome.identity.launchWebAuthFlow` (PKCE + `state`). Scopes: `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read`.
+- Storage: Dropbox app folder only (`Apps/<your app>/`), one `/<uuid>.json` per snippet (plain text, not encrypted).
+- Tokens: `chrome.storage.local` key `dropboxAuth`. Sync keeps running after Chrome restarts, no prompt.
+- Same schedule, merge, conflict and guard rules as the folder backend (below).
+- Access revoked or token invalid: banner "Sign in to Dropbox again" with a **Sign in** button.
+- **Unlink** revokes the token at Dropbox and clears it locally. Snippets and Dropbox files stay.
+- Limits:
+  - The sign-in window blocks the sync queue while it is open.
+  - Switching Dropbox account by signing in again is not supported: **Unlink** first.
+
+#### Dropbox setup
+
+1. At dropbox.com/developers/apps: **Create app** > Scoped access > **App folder**. Enable the 4 scopes above (Permissions tab, Submit).
+2. Copy the **App key** into `extension/lib/dropbox-config.js` (`DROPBOX_APP_KEY`). It is a public client id; there is no secret.
+3. Reload the extension at `chrome://extensions`.
+4. Open the manager > **Sync**. Copy the shown redirect URI (`https://<extension-id>.chromiumapp.org/`).
+5. Paste it into the Dropbox app > Settings > **Redirect URIs** > Add.
+6. Click **Sign in to Dropbox**.
+
+- The extension ID differs per machine and install (no manifest `key`). Repeat steps 4-5 for each one.
+- Manual checklist: `docs/superpowers/plans/2026-11-21-dropbox-sync-manual-checklist.md`.
+
+### Folder
+
 - Open the manager window > **Sync** > **Choose folder...** Pick a folder that your own tool (Dropbox, Google Drive, Box, Syncthing, ...) keeps in sync across devices. The first prompt only offers Allow / Don't allow. After every Chrome restart the permission is gone: the toolbar icon shows `!` and the toolbar popup opens on a **Re-allow folder** button (also in the Sync panel). Choose **Allow on every visit** there; sync then keeps running in the background until the next restart.
 - The folder gets one `<id>.json` file per snippet (plain text, not encrypted). Other files in the folder are ignored. Cloud tools may keep files "online-only"; those are retried on the next run.
 - Sync runs in the background: 2 seconds after a change, every 15 min (choose 15 min, 30 min, 1 h, 2 h, 6 h or 12 h), when the computer wakes or unlocks, at browser start, and on **Sync now**.
