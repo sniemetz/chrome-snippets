@@ -36,3 +36,13 @@ export function tagCounts(snippets) {
   }
   return [...map.values()].sort((a, b) => key(a.tag).localeCompare(key(b.tag)));
 }
+
+// Tag suggestions for the tag field: substring match (case-insensitive) on 1+ typed chars, tags already on the
+// snippet left out, prefix matches first. `all` is already sorted (allTags), so each group stays alphabetical.
+export function suggestTags(all, current, query) {
+  const q = String(query ?? "").trim().toLowerCase();
+  if (!q) return [];
+  const have = new Set(current.map(key));
+  const hits = all.filter((t) => !have.has(key(t)) && key(t).includes(q));
+  return [...hits.filter((t) => key(t).startsWith(q)), ...hits.filter((t) => !key(t).startsWith(q))];
+}

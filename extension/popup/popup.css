@@ -49,6 +49,9 @@ button.primary { background: var(--accent); color: var(--accent-fg); border-colo
 #editor textarea { flex: 1; width: 100%; resize: none; min-height: 0; font-family: ui-monospace, monospace; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; border: 1px solid var(--border); border-radius: 4px; padding: 3px; max-height: 52px; overflow-y: auto; }
 .chips input { border: 0; flex: 1; min-width: 90px; padding: 1px 3px; }
+.suggest { position: fixed; z-index: 20; margin: 0; padding: 2px; list-style: none; max-height: 168px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.suggest li { padding: 3px 8px; border-radius: 3px; cursor: pointer; }
+.suggest li:hover, .suggest li:focus { background: var(--sel); outline: none; }
 .chip { background: var(--sel); border-radius: 10px; padding: 1px 4px 1px 8px; color: var(--fg); display: inline-flex; gap: 4px; align-items: center; }
 .chip button { border: 0; padding: 0 3px; background: none; border-radius: 50%; line-height: 1; }
 .err { color: var(--err); font-size: 11px; }

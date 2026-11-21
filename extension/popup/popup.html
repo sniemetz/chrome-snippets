@@ -30,9 +30,9 @@
       <label>Name <input id="name" type="text"></label>
       <div id="nameErr" class="err" hidden></div>
       <label>Tags
-        <div id="chips" class="chips"><input id="tagInput" type="text" list="tagList" placeholder="Add tag, press Enter"></div>
+        <div id="chips" class="chips"><input id="tagInput" type="text" placeholder="Add tag, press Enter" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="tagSuggest"></div>
       </label>
-      <datalist id="tagList"></datalist>
+      <ul id="tagSuggest" class="suggest" role="listbox" hidden></ul>
       <div class="grow contentbox">
         <div class="contenthead">
           <label for="content">Content</label>

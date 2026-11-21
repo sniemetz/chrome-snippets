@@ -1,5 +1,5 @@
 import { createStore, StoreError } from "../lib/store.js";
-import { allTags, normalizeTags } from "../lib/tags.js";
+import { allTags, normalizeTags, suggestTags } from "../lib/tags.js";
 import { formsEqual } from "../lib/dirty.js";
 import { largeWarning } from "../lib/limits.js";
 import { classifyExternalChange } from "../lib/editor-sync.js";
@@ -89,7 +89,6 @@ function renderTagFilter() {
   const list = allTags(metas);
   sel.replaceChildren(new Option("All tags", ""), ...list.map((t) => new Option(t, t)));
   sel.value = list.includes(cur) ? cur : "";
-  $("tagList").replaceChildren(...list.map((t) => new Option(t)));
 }
 async function reload() {
   metas = await store.listMeta();
@@ -193,11 +192,69 @@ $("search").addEventListener("input", () => { clearTimeout(debounce); debounce =
 $("tagFilter").addEventListener("change", () => renderList());
 $("closeBtn").onclick = () => guardUnsaved(() => { queued = null; window.close(); });
 
+// ---------- tag suggestions (custom dropdown: Tab / Down enter the list, Up/Down move, Enter adds, Esc closes) ----------
+const suggestEl = $("tagSuggest");
+let intoList = false;
+const suggestItems = () => [...suggestEl.children];
+function closeSuggest() {
+  suggestEl.hidden = true;
+  suggestEl.replaceChildren();
+  $("tagInput").setAttribute("aria-expanded", "false");
+}
+function openSuggest() {
+  const input = $("tagInput");
+  const hits = suggestTags(allTags(metas), tags, input.value);
+  if (!hits.length) { closeSuggest(); return; }
+  suggestEl.replaceChildren(...hits.map((t) => {
+    const li = document.createElement("li");
+    li.textContent = t;
+    li.tabIndex = -1;
+    li.setAttribute("role", "option");
+    return li;
+  }));
+  const r = input.getBoundingClientRect();
+  suggestEl.style.left = `${r.left}px`;
+  suggestEl.style.top = `${r.bottom + 2}px`;
+  suggestEl.style.minWidth = `${Math.max(120, r.width)}px`;
+  suggestEl.hidden = false;
+  input.setAttribute("aria-expanded", "true");
+}
+function pickSuggestion(tag) {
+  $("tagInput").value = "";
+  tags = normalizeTags([...tags, tag], allTags(metas));
+  closeSuggest();
+  renderChips();
+  $("tagInput").focus();
+}
+suggestEl.addEventListener("mousedown", (e) => e.preventDefault()); // keep focus in the input while clicking
+suggestEl.addEventListener("click", (e) => { const li = e.target.closest("li"); if (li) pickSuggestion(li.textContent); });
+suggestEl.addEventListener("keydown", (e) => {
+  const items = suggestItems();
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown") { e.preventDefault(); items[Math.min(i + 1, items.length - 1)]?.focus(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); if (i <= 0) $("tagInput").focus(); else items[i - 1].focus(); }
+  else if (e.key === "Enter") { e.preventDefault(); if (i >= 0) pickSuggestion(items[i].textContent); }
+  else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeSuggest(); $("tagInput").focus(); }
+  else if (e.key === "Tab") { e.preventDefault(); $("tagInput").focus(); } // Tab leaves the list back to the field
+});
+$("tagInput").addEventListener("input", openSuggest);
+$("tagInput").addEventListener("focusout", () => setTimeout(() => {
+  if (!suggestEl.contains(document.activeElement) && document.activeElement !== $("tagInput")) closeSuggest();
+}, 0));
+
 $("tagInput").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commitTagInput(); }
+  const open = !suggestEl.hidden;
+  if (open && (e.key === "Tab" && !e.shiftKey || e.key === "ArrowDown")) {
+    e.preventDefault();
+    intoList = true; // blur fires "change" on the field: it must not commit the half-typed text
+    setTimeout(() => { intoList = false; }, 0);
+    suggestItems()[0]?.focus();
+  }
+  else if (open && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeSuggest(); }
+  else if (e.key === "Enter" || e.key === ",") { e.preventDefault(); closeSuggest(); commitTagInput(); }
   else if (e.key === "Backspace" && !$("tagInput").value && tags.length) { tags.pop(); renderChips(); }
 });
-$("tagInput").addEventListener("change", commitTagInput);
+$("tagInput").addEventListener("change", () => { if (!intoList) commitTagInput(); });
 $("editor").addEventListener("submit", (e) => e.preventDefault());
 $("copyLink").addEventListener("click", (e) => {
   e.preventDefault();

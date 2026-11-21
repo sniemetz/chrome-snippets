@@ -22,3 +22,16 @@ test("tagCounts counts snippets per tag case-insensitively, sorted, first-seen s
   assert.deepEqual(tagCounts(metas), [{ tag: "A", count: 2 }, { tag: "b", count: 1 }]);
 });
 test("tagCounts of no snippets is empty", () => assert.deepEqual(tagCounts([]), []));
+
+import { suggestTags } from "../extension/lib/tags.js";
+test("suggestTags: needs 1+ chars, substring, case-insensitive, prefix first", () => {
+  const all = ["Archive", "Email", "Mail", "Work"];
+  assert.deepEqual(suggestTags(all, [], ""), []);
+  assert.deepEqual(suggestTags(all, [], "  "), []);
+  assert.deepEqual(suggestTags(all, [], "MAIL"), ["Mail", "Email"]);
+  assert.deepEqual(suggestTags(all, [], "w"), ["Work"]);
+  assert.deepEqual(suggestTags(all, [], "zzz"), []);
+});
+test("suggestTags: leaves out tags already on the snippet (case-insensitive)", () => {
+  assert.deepEqual(suggestTags(["Mail", "Email"], ["mail"], "mail"), ["Email"]);
+});
