@@ -144,6 +144,9 @@ async function handleSyncMessage(msg) {
         if (!dir) return { ok: false };
         await syncState.clear();
         await syncState.set({ linked: true, folderName: dir.name });
+        // Folder link made: drop any Dropbox tokens (revoke never throws). A failed link returned above.
+        const auth = dropboxAuth();
+        if (await auth.hasLink() || await auth.isInvalid()) { await auth.revoke(); await auth.clear(); }
         await ensureAlarm({ force: true });
         await doSync({ firstLink: true });
         return { ok: true };
@@ -156,6 +159,7 @@ async function handleSyncMessage(msg) {
           return { ok: false, error: String(err?.message ?? err) };
         }
         const prior = await syncState.get();
+        const priorDropbox = prior.linked && prior.backend === "dropbox";
         try {
           const account = await dropboxAdapter().accountName();
           await syncState.clear();
@@ -164,17 +168,31 @@ async function handleSyncMessage(msg) {
           await doSync({ firstLink: true });
           return { ok: true };
         } catch (err) {
-          // Link not made: drop the tokens just stored unless they belong to the existing Dropbox link.
-          if (!(prior.linked && prior.backend === "dropbox")) await dropboxAuth().clear();
+          // Link not made: drop the tokens just stored. An existing Dropbox link is paused, not kept on unverified tokens.
+          await dropboxAuth().clear();
+          if (priorDropbox) await syncState.set({ status: "paused", message: dropboxAdapter().pausedMessage });
           return { ok: false, error: String(err?.message ?? err) };
         }
       });
     case "sync-signin-dropbox":
       return exclusive(async () => {
+        const st = await syncState.get();
+        if (!(st.linked && st.backend === "dropbox")) return { ok: false, error: "Not linked to Dropbox" };
         try {
           await dropboxSignIn();
         } catch (err) {
           return { ok: false, error: String(err?.message ?? err) };
+        }
+        // Refuse a different account (or an unverifiable one): syncing would delete local snippets.
+        let account = null;
+        try { account = await dropboxAdapter().accountName(); } catch { /* treated as unverified */ }
+        if (account === null || account !== st.account) {
+          await dropboxAuth().clear();
+          await syncState.set({ status: "paused", message: dropboxAdapter().pausedMessage });
+          await syncBadge();
+          return { ok: false, error: account === null
+            ? "Could not verify the Dropbox account. Try again, or unlink first."
+            : "Signed in as a different Dropbox account. Unlink first to switch accounts." };
         }
         await syncState.set({ status: "ok", message: "" });
         await syncBadge();
@@ -190,7 +208,7 @@ async function handleSyncMessage(msg) {
           await auth.clear();
         }
         await syncState.clear();
-        if (backend !== "dropbox") await deleteHandle();
+        await deleteHandle();
         await chrome.alarms.clear(SYNC_ALARM);
         await syncBadge();
         return { ok: true };

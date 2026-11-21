@@ -76,6 +76,7 @@ export function createDropboxAuth({ fetch, area, appKey, now = Date.now }) {
       expiresAt: now() + body.expires_in * 1000, invalid: false });
   }
 
+  // Call only inside sw.js's `exclusive` queue: no in-flight dedupe by design (concurrent refreshes would race).
   async function accessToken({ force } = {}) {
     const st = await load();
     if (!st || !st.refresh || st.invalid) throw new DropboxAuthError("Dropbox is not linked");

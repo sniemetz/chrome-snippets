@@ -1,6 +1,6 @@
 # Cloud sync (Dropbox first) - design
 
-Status: draft for approval. Branch: `cloud-sync`. Builds on `2026-11-18-folder-sync-design.md`.
+Status: approved and implemented. Branch: `cloud-sync`. Builds on `2026-11-18-folder-sync-design.md`.
 Items marked **[call]** are my decisions, open to correction.
 
 ## Intent
@@ -25,8 +25,8 @@ Items marked **[call]** are my decisions, open to correction.
 ## Constraints
 - MV3 service worker does all sync; it can be killed at any time. Tokens live in `chrome.storage.local`, not in memory.
 - Chrome only (`chrome.identity.launchWebAuthFlow`).
-- The OAuth redirect URL is `https://<extension-id>.chromiumapp.org/`. Unpacked extension IDs differ per machine, so the manifest gets no fixed `key`: each machine registers its own redirect URI (decided, see below).
-- Setup per machine: read the ID from `chrome.runtime.id` (shown in the sync panel) and add `https://<id>.chromiumapp.org/` to the Dropbox app's redirect URIs.
+- The OAuth redirect URL is `chrome.identity.getRedirectURL()` (`https://<extension-id>.chromiumapp.org/`). Unpacked extension IDs differ per machine, so the manifest gets no fixed `key`: each machine registers its own redirect URI (decided, see below).
+- Setup per machine: read the redirect URI from `chrome.identity.getRedirectURL()` (shown in the sync panel; do not build it by hand) and add `https://<id>.chromiumapp.org/` to the Dropbox app's redirect URIs.
 - New permissions: `identity`; host permissions `https://api.dropboxapi.com/*`, `https://content.dropboxapi.com/*`.
 - The user must register a Dropbox app (scoped access, "App folder", scopes `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read` **[call: list_folder and the account name need the last two]**, plus the redirect URI). Only the user can do this; the app key is entered into the code/config afterwards.
 
@@ -37,7 +37,7 @@ Items marked **[call]** are my decisions, open to correction.
 - Chosen by the user: A, with the option to drop Google if it is a hassle.
 
 ## Design
-- **Adapter** `lib/dropbox.js`: `createDropbox({ fetch, tokens })` returns the same shape as `createFolder`:
+- **Adapter** `lib/dropbox.js`: `createDropbox({ fetch, auth })` returns the same shape as `createFolder`:
   - `permission()`: `"granted"` if a refresh token is stored and not marked invalid, else `"denied"`. Local check only, no network. So a network error counts as a skipped file and never as a lost permission.
   - `list()`: `files/list_folder` (+`continue`), only `<uuid>.json`; `fileModified` = `server_modified` in ms; throws `FolderReadError` on failure (an unlistable folder must not look empty).
   - `read(id)`: `files/download`, parsed with `parseSnippetFile`, id must match the file name.

@@ -33,14 +33,14 @@ Two backends: **Dropbox** (sign-in, no local folder) and **Folder** (your own to
 - Tokens: `chrome.storage.local` key `dropboxAuth`. Sync keeps running after Chrome restarts, no prompt.
 - Same schedule, merge, conflict and guard rules as the folder backend (below).
 - Access revoked or token invalid: banner "Sign in to Dropbox again" with a **Sign in** button.
-- **Unlink** revokes the token at Dropbox and clears it locally. Snippets and Dropbox files stay.
+- **Unlink** with the Dropbox backend linked revokes the token at Dropbox and clears it locally. Switching to a folder link also revokes and clears it. Snippets and remote files stay.
 - Limits:
   - The sign-in window blocks the sync queue while it is open.
   - Switching Dropbox account by signing in again is not supported: **Unlink** first.
 
 #### Dropbox setup
 
-1. At dropbox.com/developers/apps: **Create app** > Scoped access > **App folder**. Enable the 4 scopes above (Permissions tab, Submit).
+1. At dropbox.com/developers/apps: **Create app** > Scoped access > **App folder**. Enable the 4 scopes above (Permissions tab) and click **Submit** BEFORE the first sign-in (changing scopes later invalidates tokens: sign in again). Keep **Allow public clients (PKCE)** enabled (default).
 2. Copy the **App key** into `extension/lib/dropbox-config.js` (`DROPBOX_APP_KEY`). It is a public client id; there is no secret.
 3. Reload the extension at `chrome://extensions`.
 4. Open the manager > **Sync**. Copy the shown redirect URI (`https://<extension-id>.chromiumapp.org/`).
