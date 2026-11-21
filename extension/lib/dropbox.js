@@ -33,7 +33,8 @@ export function createDropbox({ fetch, auth, sleep = (ms) => new Promise((r) => 
         continue;
       }
       if (res.ok) return res;
-      if (res.status === 401 && !refreshed) {
+      if (res.status === 401) {
+        if (refreshed) throw new DropboxAuthError("Dropbox rejected the access token");
         refreshed = true;
         token = await auth.accessToken({ force: true });
         continue;

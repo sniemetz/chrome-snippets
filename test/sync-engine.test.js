@@ -328,3 +328,17 @@ test("an ordinary error from one file is skipped, not paused", async () => {
   assert.equal(r.counts.skipped, 1);
   assert.equal(r.counts.pulled, 1);
 });
+
+test("a token Dropbox keeps rejecting pauses the run after the first failing call", async () => {
+  const u = (n) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`;
+  const c = await setup({ local: [sn(u(1)), sn(u(2))] });
+  const dbx = fakeDropbox();
+  const auth = { hasLink: async () => true, accessToken: async () => "stale" };
+  const dropbox = createDropbox({ fetch: dbx.fetch, auth, sleep: async () => {} });
+  const r = await runSync({ store: c.store, folder: dropbox, state: c.state, now: c.now, firstLink: true });
+  assert.equal(r.status, "paused");
+  const st = await c.state.get();
+  assert.equal(st.status, "paused");
+  assert.equal(st.message, "Sign in to Dropbox again");
+  assert.equal(dbx.calls.length, 2); // list_folder + its one retry, then the run stops
+});

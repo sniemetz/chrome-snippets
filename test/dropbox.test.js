@@ -112,8 +112,19 @@ test("expired token mid-run: one forced refresh, one retry", async () => {
 test("a second 401 throws and does not loop", async () => {
   const { dbx, auth, dropbox } = setup();
   auth.accessToken = async () => "stale";
-  await assert.rejects(dropbox.write(snip(1)));
+  await assert.rejects(dropbox.write(snip(1)), (e) => e.name === "DropboxAuthError");
   assert.equal(dbx.calls.length, 2);
+});
+
+test("a 401 that survives the forced refresh is a DropboxAuthError from every operation", async () => {
+  const ops = [(d) => d.list(), (d) => d.read(uid(1)), (d) => d.write(snip(1)), (d) => d.remove(uid(1)), (d) => d.accountName()];
+  for (const op of ops) {
+    const { dbx, auth, dropbox } = setup();
+    dbx.put(uid(1), "{}");
+    auth.accessToken = async ({ force } = {}) => { if (force) auth.forced++; return "stale"; };
+    await assert.rejects(op(dropbox), (e) => e.name === "DropboxAuthError" && !(e instanceof FolderReadError));
+    assert.equal(auth.forced, 1);
+  }
 });
 
 test("429 waits Retry-After seconds then retries once", async () => {
