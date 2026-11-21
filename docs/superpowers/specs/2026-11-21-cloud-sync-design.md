@@ -25,7 +25,8 @@ Items marked **[call]** are my decisions, open to correction.
 ## Constraints
 - MV3 service worker does all sync; it can be killed at any time. Tokens live in `chrome.storage.local`, not in memory.
 - Chrome only (`chrome.identity.launchWebAuthFlow`).
-- The OAuth redirect URL is `https://<extension-id>.chromiumapp.org/`. Unpacked extension IDs differ per machine, so the manifest gets a fixed `key` (OPEN, see below). **[call]**
+- The OAuth redirect URL is `https://<extension-id>.chromiumapp.org/`. Unpacked extension IDs differ per machine, so the manifest gets no fixed `key`: each machine registers its own redirect URI (decided, see below).
+- Setup per machine: read the ID from `chrome.runtime.id` (shown in the sync panel) and add `https://<id>.chromiumapp.org/` to the Dropbox app's redirect URIs.
 - New permissions: `identity`; host permissions `https://api.dropboxapi.com/*`, `https://content.dropboxapi.com/*`.
 - The user must register a Dropbox app (scoped access, "App folder", scopes `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read` **[call: list_folder and the account name need the last two]**, plus the redirect URI). Only the user can do this; the app key is entered into the code/config afterwards.
 
@@ -65,5 +66,5 @@ Items marked **[call]** are my decisions, open to correction.
 ## Left to the builder
 - File layout and names inside `lib/`, request helper structure, exact retry timing, message and button wording, test fake design.
 
-## Open: extension ID
+## Decided: extension ID (user chose option 2)
 A fixed `key` changes the ID of the current unpacked install, so Chrome sees a new extension with empty storage (snippets live in `chrome.storage.local`). Options: (1) add `key`, export snippets first, import after (one-time, per machine); (2) no `key`: register each machine's own redirect URI in the Dropbox app (it accepts several) and read the ID from `chrome.runtime.id`; no data risk, but every new machine/path needs its URI added.
