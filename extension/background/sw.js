@@ -61,21 +61,29 @@ const dropboxAdapter = () => createDropbox({ fetch: (...a) => fetch(...a), auth:
 const dropboxPending = () => createPending({ area: chrome.storage.local });
 
 // Step 1 of the code-paste sign-in: PKCE verifier is persisted (the worker may be killed before the user pastes).
-async function dropboxBegin() {
+async function dropboxBegin(mode) {
   if (!DROPBOX_APP_KEY) throw new Error("Dropbox app key not configured");
   const { verifier, challenge } = await makePkce();
-  await dropboxPending().begin(verifier);
+  await dropboxPending().begin(verifier, mode === "signin" ? "signin" : "link");
   return buildAuthUrl({ appKey: DROPBOX_APP_KEY, challenge });
 }
 
-// Step 2: exchange the pasted code; stores tokens only on success. The pending verifier is consumed by any attempt.
+// Step 2: exchange the pasted code; stores tokens only on success. The pending verifier is dropped once Dropbox
+// answered (success or refusal); on a network failure it is kept so the user can press Connect again.
 async function dropboxSignIn(rawCode) {
   if (!DROPBOX_APP_KEY) throw new Error("Dropbox app key not configured");
   const code = typeof rawCode === "string" ? rawCode.trim() : "";
   if (!code) throw new Error("Paste the code from Dropbox");
-  const verifier = await dropboxPending().consume();
-  if (!verifier) throw new Error("Start the Dropbox sign-in again");
-  await dropboxAuth().signIn(code, verifier);
+  const pending = dropboxPending();
+  const p = await pending.get();
+  if (!p) throw new Error("Start the Dropbox sign-in again");
+  try {
+    await dropboxAuth().signIn(code, p.verifier);
+  } catch (err) {
+    if (!err?.network) await pending.clear();
+    throw err;
+  }
+  await pending.clear();
 }
 
 async function doSync(opts) {
@@ -162,16 +170,23 @@ async function handleSyncMessage(msg) {
       });
     case "sync-dropbox-begin":
       try {
-        return { ok: true, url: await dropboxBegin() };
+        return { ok: true, url: await dropboxBegin(msg.mode) };
       } catch (err) {
         return { ok: false, error: String(err?.message ?? err) };
       }
+    case "sync-dropbox-pending": {
+      const p = await dropboxPending().get();
+      return { ok: true, mode: p ? p.mode : null };
+    }
+    case "sync-dropbox-cancel":
+      await dropboxPending().clear();
+      return { ok: true };
     case "sync-link-dropbox":
       return exclusive(async () => {
         try {
           await dropboxSignIn(msg.code); // sign in first: a failure leaves the existing link untouched
         } catch (err) {
-          return { ok: false, error: String(err?.message ?? err) };
+          return { ok: false, error: String(err?.message ?? err), retry: err?.network === true };
         }
         const prior = await syncState.get();
         const priorDropbox = prior.linked && prior.backend === "dropbox";
@@ -196,7 +211,7 @@ async function handleSyncMessage(msg) {
         try {
           await dropboxSignIn(msg.code);
         } catch (err) {
-          return { ok: false, error: String(err?.message ?? err) };
+          return { ok: false, error: String(err?.message ?? err), retry: err?.network === true };
         }
         // Refuse a different account (or an unverifiable one): syncing would delete local snippets.
         let account = null;
@@ -217,6 +232,7 @@ async function handleSyncMessage(msg) {
     case "sync-unlink":
       return exclusive(async () => {
         const { backend } = await syncState.get();
+        await dropboxPending().clear();
         if (backend === "dropbox") {
           const auth = dropboxAuth();
           await auth.revoke();
@@ -284,7 +300,9 @@ async function allowSite(info) {
   }
 }
 
-async function openManager() {
+async function openManager(panel) {
+  // Hint for the manager: open straight on this panel (picked up at boot or via storage.onChanged).
+  if (panel === "sync") await chrome.storage.session.set({ openPanel: "sync" });
   const { windowId } = await chrome.storage.session.get("windowId");
   if (windowId !== undefined) {
     try {
@@ -339,7 +357,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg && msg.type === "open-manager") {
-    openManager().then(() => sendResponse({ ok: true }), () => sendResponse({ ok: false }));
+    openManager(msg.panel).then(() => sendResponse({ ok: true }), () => sendResponse({ ok: false }));
     return true;
   }
   handleMessage(store, msg).then(sendResponse, () => sendResponse(undefined));

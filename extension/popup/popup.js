@@ -303,7 +303,17 @@ async function applyPendingNew() {
     () => showStatus("Selected text kept: save or discard to add it"));
 }
 if (view === "window") {
-  chrome.storage.session.onChanged.addListener((c) => { if (c.pendingNew?.newValue) applyPendingNew(); });
+  chrome.storage.session.onChanged.addListener((c) => {
+    if (c.pendingNew?.newValue) applyPendingNew();
+    if (c.openPanel?.newValue) applyOpenPanel();
+  });
+}
+// The toolbar gate asks the manager to open on the Sync panel (a hint in session storage, like pendingNew).
+async function applyOpenPanel() {
+  const { openPanel } = await chrome.storage.session.get("openPanel");
+  if (!openPanel) return;
+  await chrome.storage.session.remove("openPanel");
+  if (openPanel === "sync" && syncPanel) guardUnsaved(showSyncPanel);
 }
 chrome.storage.onChanged.addListener(async (changes, area) => {
   if (area !== "local") return;
@@ -377,5 +387,6 @@ if (view === "window") {
     send: (msg) => chrome.runtime.sendMessage(msg),
     onStatus: (t, isErr) => showStatus(t, isErr),
   });
+  await applyOpenPanel();
   await applyPendingNew(); // only the window consumes "Add as snippet" text
 }

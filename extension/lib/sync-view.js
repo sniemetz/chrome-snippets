@@ -29,6 +29,13 @@ export const unlinkText = (st) => isDropbox(st)
 // tab closes it), so the compact toolbar gate opens the manager window instead of signing in itself.
 export const signinInGate = (compact) => (compact ? "open-manager" : "inline");
 
+// Does a pending/open paste field of this mode ("link"|"signin") still make sense for the current state?
+export function codeApplies(st, mode) {
+  if (mode === "link") return !st.linked;
+  if (mode === "signin") return !!st.linked && isDropbox(st) && st.status === "paused";
+  return false;
+}
+
 // Code-paste step: returns the trimmed code or an inline message (no request is sent for an empty code).
 export function codeCheck(raw) {
   const code = String(raw ?? "").trim();

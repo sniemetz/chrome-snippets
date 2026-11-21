@@ -66,6 +66,15 @@ test("signIn posts code exchange and stores tokens", async () => {
   assert.deepEqual(area.data.dropboxAuth, { refresh: "R1", access: "A1", expiresAt: 1_000_000 + 14400 * 1000, invalid: false });
   assert.equal(await auth.hasLink(), true);
 });
+test("signIn network failure is flagged and stores nothing", async () => {
+  const { area, auth } = setup(fakeFetch(new TypeError("Failed to fetch")));
+  await assert.rejects(auth.signIn("C", "V"), (e) => e.network === true);
+  assert.equal(area.data.dropboxAuth, undefined);
+});
+test("signIn HTTP failure is not flagged as network", async () => {
+  const { auth } = setup(fakeFetch(json(400, { error: "invalid_grant" })));
+  await assert.rejects(auth.signIn("C", "V"), (e) => !e.network);
+});
 test("signIn failure throws and stores nothing", async () => {
   const f = fakeFetch(json(400, { error: "invalid_grant" }));
   const { area, auth } = setup(f);

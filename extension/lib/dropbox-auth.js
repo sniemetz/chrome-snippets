@@ -40,11 +40,18 @@ export function createDropboxAuth({ fetch, area, appKey, now = Date.now }) {
   const save = (v) => area.set({ [KEY]: v });
 
   async function post(params) {
-    const res = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(params).toString(),
-    });
+    let res;
+    try {
+      res = await fetch(TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(params).toString(),
+      });
+    } catch (err) {
+      // No answer from Dropbox (offline etc.): callers may keep a pending sign-in and retry.
+      if (err && typeof err === "object") err.network = true;
+      throw err;
+    }
     let body = null;
     try { body = await res.json(); } catch { /* non-JSON body */ }
     return { res, body };

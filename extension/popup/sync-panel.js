@@ -1,5 +1,5 @@
 import { INTERVALS, createSyncState, needsAttention } from "../lib/sync-state.js";
-import { pausedView, pausedStatusText, linkedView, unlinkText, signinInGate, codeCheck } from "../lib/sync-view.js";
+import { pausedView, pausedStatusText, linkedView, unlinkText, signinInGate, codeCheck, codeApplies } from "../lib/sync-view.js";
 
 // Sync panel (manager window). Reads the persisted sync state and re-renders when it changes.
 // getHandle/putHandle/deleteHandle: directory handle store; send(msg): runtime message to the service worker.
@@ -16,7 +16,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
   let confirmUnlink = false;
   let decisionDismissed = false;
   let signingIn = false; // a Dropbox sign-in is pending: sign-in buttons stay disabled
-  let codeEntry = null; // "sync-link-dropbox" | "sync-signin-dropbox" while the paste-code field is shown
+  let codeEntry = null; // "link" | "signin" while the paste-code field is shown (mirrors the persisted dropboxPending mode)
   let codeValue = "";
   let focusCode = false;
 
@@ -49,14 +49,14 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     if (signingIn) return;
     if (compact && signinInGate(compact) === "open-manager") {
       // Opening the Dropbox tab closes this popup and would lose the field: the manager window hosts it.
-      try { await send({ type: "open-manager" }); } catch { /* window opens anyway or not */ }
+      try { await send({ type: "open-manager", panel: "sync" }); } catch { /* window opens anyway or not */ }
       window.close();
       return;
     }
     signingIn = true;
     render();
     try {
-      const res = await send({ type: "sync-dropbox-begin" });
+      const res = await send({ type: "sync-dropbox-begin", mode: type });
       if (!res || res.ok === false || !res.url) { onStatus(res?.error || "Could not start the Dropbox sign-in", true); return; }
       await chrome.tabs.create({ url: res.url });
       codeEntry = type; codeValue = ""; focusCode = true;
@@ -73,30 +73,40 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     if (signingIn || !codeEntry) return;
     const chk = codeCheck(codeValue);
     if (chk.error) { onStatus(chk.error, true); return; }
-    const type = codeEntry;
+    const type = codeEntry === "signin" ? "sync-signin-dropbox" : "sync-link-dropbox";
     signingIn = true;
     render();
     try {
       const res = await send({ type, code: chk.code });
-      if (res && res.ok === false) { codeEntry = null; onStatus(res.error || "Dropbox sign-in failed", true); return; }
+      if (res && res.ok === false) {
+        // Dropbox answered: the verifier is spent, start again. No answer (retry): keep the field, press Connect again.
+        if (!res.retry) codeEntry = null;
+        onStatus(res.error || "Dropbox sign-in failed", true);
+        return;
+      }
       codeEntry = null; codeValue = "";
       decisionDismissed = false;
     } catch (err) {
-      codeEntry = null;
-      onStatus(`Dropbox sign-in failed: ${err?.message ?? err}`, true);
+      onStatus(`Dropbox sign-in failed: ${err?.message ?? err}`, true); // field stays: the verifier may still be pending
     } finally {
       signingIn = false;
       render();
     }
   }
 
-  // The verifier is spent by any exchange attempt, so after a failure the user starts again (codeEntry reset above).
+  async function cancelCode() {
+    codeEntry = null; codeValue = "";
+    try { await send({ type: "sync-dropbox-cancel" }); } catch { /* pending expires by itself */ }
+    render();
+  }
+
+  // The verifier is spent once Dropbox answered, so after a failure the user starts again (codeEntry reset above).
   function codeRow() {
     const input = el("input", { type: "text", placeholder: "Paste the code from Dropbox", ariaLabel: "Dropbox code", value: codeValue, disabled: signingIn, autocomplete: "off", spellcheck: false });
     input.oninput = () => { codeValue = input.value; };
     input.onkeydown = (e) => { if (e.key === "Enter") connectDropbox(); };
     if (focusCode) { focusCode = false; setTimeout(() => input.focus(), 0); }
-    return row(input, btn("Connect", connectDropbox, { className: "primary", disabled: signingIn }), btn("Cancel", () => { codeEntry = null; codeValue = ""; render(); }, { disabled: signingIn }));
+    return row(input, btn("Connect", connectDropbox, { className: "primary", disabled: signingIn }), btn("Cancel", cancelCode, { disabled: signingIn }));
   }
 
   function statusText(st) {
@@ -111,8 +121,8 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
   function banners(st, withCancel) {
     if (st.status === "paused") {
       const pv = pausedView(st);
-      const inCode = pv.action === "signin" && codeEntry === "sync-signin-dropbox";
-      root.append(row(el("span", { className: "err", textContent: pv.text }), ...(inCode ? [] : [btn(pv.actionLabel, pv.action === "signin" ? () => beginDropbox("sync-signin-dropbox") : reallow, { className: "primary", disabled: pv.action === "signin" && signingIn })])));
+      const inCode = pv.action === "signin" && codeEntry === "signin";
+      root.append(row(el("span", { className: "err", textContent: pv.text }), ...(inCode ? [] : [btn(pv.actionLabel, pv.action === "signin" ? () => beginDropbox("signin") : reallow, { className: "primary", disabled: pv.action === "signin" && signingIn })])));
       if (inCode) root.append(codeRow());
     }
     if (st.status === "needs-decision" && withCancel && decisionDismissed) {
@@ -131,17 +141,33 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     }
   }
 
+  // Keep the paste field in step with state and with the persisted pending sign-in: drop it when it no longer
+  // applies (unlinked/backend change), restore it after the manager was closed or reloaded mid-flow.
+  async function syncCodeEntry(st) {
+    if (codeEntry && !codeApplies(st, codeEntry)) {
+      codeEntry = null; codeValue = "";
+      try { await send({ type: "sync-dropbox-cancel" }); } catch { /* expires by itself */ }
+    }
+    if (!codeEntry && !signingIn && (!st.linked || (st.backend === "dropbox" && st.status === "paused"))) {
+      try {
+        const res = await send({ type: "sync-dropbox-pending" });
+        if (res?.mode && codeApplies(st, res.mode)) { codeEntry = res.mode; codeValue = ""; focusCode = true; }
+      } catch { /* no restore */ }
+    }
+  }
+
   async function render() {
     const st = await state.get();
     if (compact && !needsAttention(st)) { onResolved?.(); return; }
+    if (!compact) await syncCodeEntry(st);
     root.replaceChildren(el("h2", { textContent: "Sync" }));
     if (compact) { banners(st, false); return; }
     if (!st.linked) {
       root.append(
         el("p", { className: "placeholder", textContent: "Sync your snippets between devices with Dropbox, or with a folder that your own tool keeps in sync. For a folder, choose \"Allow on every visit\" when Chrome asks." }),
-        codeEntry === "sync-link-dropbox"
+        codeEntry === "link"
           ? el("div", {}, el("p", { className: "muted", textContent: "Allow access on the Dropbox page, copy the code it shows, and paste it here." }), codeRow())
-          : row(btn("Sign in to Dropbox...", () => beginDropbox("sync-link-dropbox"), { className: "primary", disabled: signingIn }), btn("Choose local folder...", pick)),
+          : row(btn("Sign in to Dropbox...", () => beginDropbox("link"), { className: "primary", disabled: signingIn }), btn("Choose local folder...", pick)),
       );
       return;
     }

@@ -14,10 +14,11 @@ Owner: the user. Not run yet; nothing here is automated.
 
 ## Auth edge cases
 - [ ] Revoke access in Dropbox: sign-in banner appears; "Sign in" recovers
-- [ ] Popup closed mid-flow (Dropbox tab opened), reopened manager > Sync: pasting the code still works within 15 min; after 15 min it says to start again
+- [ ] Manager closed mid-flow (after the Dropbox tab opened), reopened > Sync: the paste field is back and pasting works within 15 min; after 15 min no field, start again
 - [ ] Cancel at the paste step: back to the buttons; while already linked, link stays intact
 - [ ] Wrong or expired code: error shown, nothing linked; a new Sign in works
+- [ ] Offline while pressing Connect: error shown, field stays; Connect works once online
 - [ ] Re-sign-in (after revoke) with the same account: OK
 - [ ] Re-sign-in with a different account: refused, sync stays paused
-- [ ] Toolbar popup with paused Dropbox: "Sign in" opens the manager window, which has the paste field
+- [ ] Toolbar popup with paused Dropbox: "Sign in" opens the manager directly on Sync, which has the paste field
 - [ ] Unlink: the app is gone from Dropbox's connected-apps list

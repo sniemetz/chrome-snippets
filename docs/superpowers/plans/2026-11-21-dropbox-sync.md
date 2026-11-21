@@ -1,5 +1,7 @@
 # Dropbox Sync Implementation Plan
 
+> **Superseded in part:** the sign-in parts of this plan (`launchWebAuthFlow`, redirect URI, `identity` permission, per-machine setup) were replaced by the code-paste flow with an embedded public app key. See "Decided: code-paste sign-in" in `docs/superpowers/specs/2026-11-21-cloud-sync-design.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add Dropbox as a sync backend (sign in once, syncs periodically through Chrome restarts), behind the existing `folder` interface.

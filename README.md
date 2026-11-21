@@ -28,7 +28,7 @@ Two backends: **Dropbox** (sign-in, no local folder) and **Folder** (your own to
 
 ### Dropbox
 
-- Sign-in (nothing to configure): manager > **Sync** > **Sign in to Dropbox...**, allow access on the Dropbox page, copy the code it shows, paste it into the field in the Sync panel, click **Connect**. No redirect URI; PKCE with an embedded public app key. If the popup closes meanwhile, reopen manager > Sync and paste: the pending sign-in is kept for 15 min. In the toolbar popup, the paused "Sign in" button opens the manager window for the paste step.
+- Sign-in (nothing to configure): manager > **Sync** > **Sign in to Dropbox...**, allow access on the Dropbox page, copy the code it shows, paste it into the field in the Sync panel, click **Connect**. No redirect URI; PKCE with an embedded public app key. If the manager closes meanwhile, reopen manager > Sync: the paste field comes back (the pending sign-in is kept for 15 min, then start again). In the toolbar popup, the paused "Sign in" button opens the manager directly on Sync for the paste step. A network error keeps the field: press **Connect** again.
 - Scopes: `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read`.
 - Storage: Dropbox app folder only (`Apps/<your app>/`), one `/<uuid>.json` per snippet (plain text, not encrypted).
 - Tokens: `chrome.storage.local` key `dropboxAuth`. Sync keeps running after Chrome restarts, no prompt.
@@ -43,7 +43,7 @@ Two backends: **Dropbox** (sign-in, no local folder) and **Folder** (your own to
 
 Not needed for normal use: the extension ships with a public app key (`extension/lib/dropbox-config.js`). To use your own app:
 
-1. At dropbox.com/developers/apps: **Create app** > Scoped access > **App folder**. Enable the 4 scopes above and click **Submitted** BEFORE the first sign-in (changing scopes later invalidates tokens). Keep **Allow public clients (PKCE)** enabled. Add NO redirect URI.
+1. At dropbox.com/developers/apps: **Create app** > Scoped access > **App folder**. Enable the 4 scopes above and click **Submit** BEFORE the first sign-in (changing scopes later invalidates tokens). Keep **Allow public clients (PKCE)** enabled. Add NO redirect URI.
 2. Put the **App key** into `DROPBOX_APP_KEY` in `extension/lib/dropbox-config.js` (public client id, no secret) and reload the extension.
 
 - Manual checklist: `docs/superpowers/plans/2026-11-21-dropbox-sync-manual-checklist.md`.

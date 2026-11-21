@@ -44,3 +44,14 @@ test("codeCheck trims and rejects empty", () => {
   assert.match(codeCheck("   ").error, /Paste the code/);
   assert.match(codeCheck(undefined).error, /Paste the code/);
 });
+
+import { codeApplies } from "../extension/lib/sync-view.js";
+test("codeApplies: link only when unlinked, signin only when Dropbox is paused", () => {
+  assert.equal(codeApplies({ linked: false }, "link"), true);
+  assert.equal(codeApplies({ linked: true, backend: "dropbox", status: "ok" }, "link"), false);
+  assert.equal(codeApplies({ linked: true, backend: "dropbox", status: "paused" }, "signin"), true);
+  assert.equal(codeApplies({ linked: true, backend: "dropbox", status: "ok" }, "signin"), false);
+  assert.equal(codeApplies({ linked: true, backend: "folder", status: "paused" }, "signin"), false);
+  assert.equal(codeApplies({ linked: false }, "signin"), false);
+  assert.equal(codeApplies({ linked: false }, null), false);
+});

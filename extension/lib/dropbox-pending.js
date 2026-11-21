@@ -1,18 +1,27 @@
-// Pending Dropbox sign-in: the PKCE verifier survives a service-worker restart between "open Dropbox"
-// and "paste code". Expires after 15 min; consume() always deletes it.
+// Pending Dropbox sign-in: the PKCE verifier and the UI mode survive a service-worker restart and a
+// closed manager between "open Dropbox" and "paste code". Expires after 15 min.
 const KEY = "dropboxPending";
 export const PENDING_TTL_MS = 15 * 60_000;
+const MODES = ["link", "signin"];
 
 export function createPending({ area, now = Date.now }) {
+  const read = async () => (await area.get(KEY))[KEY];
+  const valid = (p) => !!p && typeof p.verifier === "string" && p.verifier !== "" && MODES.includes(p.mode)
+    && typeof p.createdAt === "number" && now() - p.createdAt >= 0 && now() - p.createdAt <= PENDING_TTL_MS;
+  const clear = () => area.remove(KEY);
   return {
-    async begin(verifier) { await area.set({ [KEY]: { verifier, createdAt: now() } }); },
-    // Returns the verifier or null (missing, malformed or expired); deletes the entry either way.
-    async consume() {
-      const p = (await area.get(KEY))[KEY];
-      await area.remove(KEY);
-      if (!p || typeof p.verifier !== "string" || !p.verifier || typeof p.createdAt !== "number") return null;
-      const age = now() - p.createdAt;
-      return age < 0 || age > PENDING_TTL_MS ? null : p.verifier;
+    // Overwrites any older entry (expired or malformed ones included).
+    async begin(verifier, mode) {
+      if (!MODES.includes(mode)) throw new Error("Bad Dropbox sign-in mode");
+      await area.set({ [KEY]: { verifier, mode, createdAt: now() } });
     },
+    // Non-destructive read: {verifier, mode} or null. A dead entry (expired/malformed) is deleted.
+    async get() {
+      const p = await read();
+      if (valid(p)) return { verifier: p.verifier, mode: p.mode };
+      if (p !== undefined) await clear();
+      return null;
+    },
+    clear,
   };
 }
