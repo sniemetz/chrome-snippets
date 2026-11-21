@@ -16,7 +16,7 @@ export const pausedStatusText = (st) =>
 // Header row of a linked panel.
 export function linkedView(st) {
   return isDropbox(st)
-    ? { label: `Dropbox: ${st.account}`, showChangeFolder: false }
+    ? { label: `Dropbox: ${st.account || "connected"}`, showChangeFolder: false }
     : { label: `Folder: ${st.folderName}`, showChangeFolder: true };
 }
 

@@ -15,6 +15,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
   const row = (...kids) => el("div", { className: "syncrow" }, ...kids);
   let confirmUnlink = false;
   let decisionDismissed = false;
+  let signingIn = false; // a Dropbox sign-in is pending: sign-in buttons stay disabled
 
   async function pick() {
     let dir;
@@ -42,12 +43,18 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
 
   // Dropbox sign-in (link when unlinked, sign in again when paused). Failures show the returned error.
   async function dropbox(type) {
+    if (signingIn) return;
+    signingIn = true;
+    render();
     try {
       const res = await send({ type });
       if (res && res.ok === false) { onStatus(res.error || "Dropbox sign-in failed", true); return; }
       decisionDismissed = false;
     } catch (err) {
       onStatus(`Dropbox sign-in failed: ${err?.message ?? err}`, true);
+    } finally {
+      signingIn = false;
+      render();
     }
   }
 
@@ -63,7 +70,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
   function banners(st, withCancel) {
     if (st.status === "paused") {
       const pv = pausedView(st);
-      root.append(row(el("span", { className: "err", textContent: pv.text }), btn(pv.actionLabel, pv.action === "signin" ? () => dropbox("sync-signin-dropbox") : reallow, { className: "primary" })));
+      root.append(row(el("span", { className: "err", textContent: pv.text }), btn(pv.actionLabel, pv.action === "signin" ? () => dropbox("sync-signin-dropbox") : reallow, { className: "primary", disabled: pv.action === "signin" && signingIn })));
     }
     if (st.status === "needs-decision" && withCancel && decisionDismissed) {
       root.append(row(el("span", { className: "err", textContent: "Sync is stopped until you decide." }), btn("Decide...", () => { decisionDismissed = false; render(); })));
@@ -88,8 +95,8 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     if (compact) { banners(st, false); return; }
     if (!st.linked) {
       root.append(
-        el("p", { className: "placeholder", textContent: "Pick a folder your sync tool keeps in sync across devices. When Chrome asks, choose \"Allow on every visit\"." }),
-        row(btn("Sign in to Dropbox...", () => dropbox("sync-link-dropbox"), { className: "primary" }), btn("Choose local folder...", pick)),
+        el("p", { className: "placeholder", textContent: "Sync your snippets between devices with Dropbox, or with a folder that your own tool keeps in sync. For a folder, choose \"Allow on every visit\" when Chrome asks." }),
+        row(btn("Sign in to Dropbox...", () => dropbox("sync-link-dropbox"), { className: "primary", disabled: signingIn }), btn("Choose local folder...", pick)),
         el("p", { className: "muted", textContent: `Extension ID: ${chrome.runtime.id}` }),
         el("p", { className: "muted", textContent: `Add ${chrome.identity.getRedirectURL()} as a redirect URI in the Dropbox app` }),
       );

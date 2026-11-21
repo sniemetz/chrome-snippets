@@ -28,3 +28,8 @@ test("paused folder ignores st.message (engine always sets it)", () => {
   assert.equal(pausedStatusText(st), "Sync paused: folder access must be re-allowed");
   assert.equal(pausedView(st).text, "Folder access must be re-allowed");
 });
+test("dropbox label falls back when account missing or empty", () => {
+  assert.equal(linkedView({ backend: "dropbox" }).label, "Dropbox: connected");
+  assert.equal(linkedView({ backend: "dropbox", account: "" }).label, "Dropbox: connected");
+  assert.equal(linkedView({ backend: "dropbox", account: "a@b.c" }).label, "Dropbox: a@b.c");
+});
