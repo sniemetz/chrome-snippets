@@ -27,7 +27,7 @@ export function fakeDropbox({ pageSize = 2000 } = {}) {
     put(id, text) { files.set(`/${id}.json`, { text, server_modified: stamp() }); },
     async fetch(url, init = {}) {
       const h = init.headers || {};
-      const call = { url, auth: h.Authorization, arg: h["Dropbox-API-Arg"] ? JSON.parse(h["Dropbox-API-Arg"]) : null, body: init.body };
+      const call = { url, contentType: h["Content-Type"], auth: h.Authorization, arg: h["Dropbox-API-Arg"] ? JSON.parse(h["Dropbox-API-Arg"]) : null, body: init.body };
       calls.push(call);
       if (call.auth !== `Bearer ${d.currentToken()}`) return res(401, { error_summary: "expired_access_token/" });
       const f = failures.shift();
@@ -59,7 +59,10 @@ export function fakeDropbox({ pageSize = 2000 } = {}) {
         if (!files.delete(body.path)) return res(409, { error_summary: "path_lookup/not_found/.." });
         return res(200, { metadata: {} });
       }
-      if (path === "/2/users/get_current_account") return res(200, d.account);
+      if (path === "/2/users/get_current_account") {
+        if (init.body != null || h["Content-Type"]) return res(400, { error_summary: "no-arg endpoint must have no body or Content-Type" });
+        return res(200, d.account);
+      }
       return res(404, { error_summary: "unknown endpoint" });
     },
   };

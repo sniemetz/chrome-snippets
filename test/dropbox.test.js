@@ -42,7 +42,7 @@ test("list pages through has_more and ignores non-<uuid>.json names and folders"
 
 test("list failure throws FolderReadError", async () => {
   const { dbx, dropbox } = setup();
-  dbx.failNext(400); 
+  dbx.failNext(400);
   await assert.rejects(dropbox.list(), FolderReadError);
 });
 
@@ -88,7 +88,7 @@ test("remove deletes; a missing file is success", async () => {
 
 test("remove still throws on other errors", async () => {
   const { dbx, dropbox } = setup();
-  dbx.failNext(403); 
+  dbx.failNext(403);
   await assert.rejects(dropbox.remove(uid(1)));
 });
 
@@ -183,4 +183,19 @@ test("permission denied after invalid_grant with no network call", async () => {
   const n = calls.length;
   assert.equal(await dropbox.permission(), "denied");
   assert.equal(calls.length, n);
+});
+
+test("429 without Retry-After waits the 1 s default", async () => {
+  const { dbx, sleeps, dropbox } = setup();
+  dbx.failNext(429);
+  await dropbox.write(snip(1));
+  assert.deepEqual(sleeps, [1000]);
+});
+
+test("accountName sends no body and no Content-Type", async () => {
+  const { dbx, dropbox } = setup();
+  await dropbox.accountName();
+  const c = dbx.calls.at(-1);
+  assert.equal(c.body, undefined);
+  assert.equal(c.contentType, undefined);
 });

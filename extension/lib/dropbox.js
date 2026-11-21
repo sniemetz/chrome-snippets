@@ -40,7 +40,8 @@ export function createDropbox({ fetch, auth, sleep = (ms) => new Promise((r) => 
       }
       if (res.status === 429 && !rateLimited) {
         rateLimited = true;
-        const secs = Number(res.headers?.get?.("Retry-After"));
+        const raw = res.headers?.get?.("Retry-After");
+        const secs = raw == null || String(raw).trim() === "" ? NaN : Number(raw);
         await sleep((Number.isFinite(secs) && secs >= 0 ? secs : 1) * 1000);
         continue;
       }
@@ -53,8 +54,10 @@ export function createDropbox({ fetch, auth, sleep = (ms) => new Promise((r) => 
       throw new DropboxHttpError(res.status, text);
     }
   }
-  const rpc = (endpoint, payload) =>
-    call(`${API}${endpoint}`, { headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload ?? null) });
+  // No-argument RPC endpoints take no body and no Content-Type.
+  const rpc = (endpoint, payload) => payload === undefined
+    ? call(`${API}${endpoint}`)
+    : call(`${API}${endpoint}`, { headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
   const asRead = (err, what) => {
     if (err instanceof DropboxAuthError || err instanceof FolderReadError) return err;
     return new FolderReadError(`${what} failed: ${err?.message ?? err}`);
@@ -119,7 +122,7 @@ export function createDropbox({ fetch, auth, sleep = (ms) => new Promise((r) => 
     },
 
     async accountName() {
-      const a = await (await rpc("/users/get_current_account", null)).json();
+      const a = await (await rpc("/users/get_current_account")).json();
       return a?.name?.display_name || a?.email || "";
     },
   };
