@@ -15,3 +15,14 @@ test("missing or non-numeric fields leave placement to Chrome", () => {
   assert.deepEqual(centeredPosition({ left: 0, top: 0 }, size), {});
   assert.deepEqual(centeredPosition({ left: NaN, top: 0, width: 1000, height: 800 }, size), {});
 });
+
+import { besidePosition } from "../extension/lib/position.js";
+test("besidePosition: right of the manager when it fits", () => {
+  assert.deepEqual(besidePosition({ left: 100, top: 50, width: 616 }, { width: 520 }, { left: 0, width: 1920 }), { left: 724, top: 50 });
+});
+test("besidePosition: left when right is off-screen, {} when neither fits or unknown", () => {
+  assert.deepEqual(besidePosition({ left: 1000, top: 50, width: 616 }, { width: 520 }, { left: 0, width: 1920 }), { left: 472, top: 50 });
+  assert.deepEqual(besidePosition({ left: 100, top: 50, width: 616 }, { width: 520 }, { left: 0, width: 1000 }), {});
+  assert.deepEqual(besidePosition({ left: 100, top: 50, width: 616 }, { width: 520 }, undefined), {});
+  assert.deepEqual(besidePosition(undefined, { width: 520 }, { left: 0, width: 1920 }), {});
+});

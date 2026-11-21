@@ -1,3 +1,4 @@
+import { besidePosition } from "../lib/position.js";
 import { INTERVALS, createSyncState, needsAttention } from "../lib/sync-state.js";
 import { syncBusy, syncButtonView, unlinkDisabled, pausedView, pausedStatusText, linkedView, unlinkText, signinInGate, codeCheck, codeApplies } from "../lib/sync-view.js";
 
@@ -19,6 +20,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
   let codeEntry = null; // "link" | "signin" while the paste-code field is shown (mirrors the persisted dropboxPending mode)
   let codeValue = "";
   let focusCode = false;
+  let authWinId = null; // the small Dropbox window, closed after Connect/Cancel
   let syncClicked = false; // Sync now clicked, answer (end of run) not yet received
 
   async function pick() {
@@ -45,6 +47,28 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     }
   }
 
+  // Small popup window next to the manager (a tab would raise the browser window over the manager).
+  async function openAuthWindow(url) {
+    const size = { width: 520, height: 720 };
+    try {
+      let pos = {};
+      try {
+        const cur = await chrome.windows.getCurrent();
+        pos = besidePosition(cur, size, { left: window.screen.availLeft, width: window.screen.availWidth });
+      } catch { /* let Chrome place it */ }
+      const win = await chrome.windows.create({ url, type: "popup", focused: true, ...size, ...pos });
+      authWinId = win?.id ?? null;
+    } catch {
+      await chrome.tabs.create({ url });
+    }
+  }
+  async function closeAuthWindow() {
+    const id = authWinId;
+    authWinId = null;
+    if (id == null) return;
+    try { await chrome.windows.remove(id); } catch { /* already closed */ }
+  }
+
   // Step 1: ask the worker for the authorize URL (it persists the PKCE verifier), open it, show the paste field.
   async function beginDropbox(type) {
     if (signingIn) return;
@@ -59,7 +83,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     try {
       const res = await send({ type: "sync-dropbox-begin", mode: type });
       if (!res || res.ok === false || !res.url) { onStatus(res?.error || "Could not start the Dropbox sign-in", true); return; }
-      await chrome.tabs.create({ url: res.url });
+      await openAuthWindow(res.url);
       codeEntry = type; codeValue = ""; focusCode = true;
     } catch (err) {
       onStatus(`Dropbox sign-in failed: ${err?.message ?? err}`, true);
@@ -81,11 +105,12 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
       const res = await send({ type, code: chk.code });
       if (res && res.ok === false) {
         // Dropbox answered: the verifier is spent, start again. No answer (retry): keep the field, press Connect again.
-        if (!res.retry) codeEntry = null;
+        if (!res.retry) { codeEntry = null; closeAuthWindow(); }
         onStatus(res.error || "Dropbox sign-in failed", true);
         return;
       }
       codeEntry = null; codeValue = "";
+      closeAuthWindow();
       decisionDismissed = false;
     } catch (err) {
       onStatus(`Dropbox sign-in failed: ${err?.message ?? err}`, true); // field stays: the verifier may still be pending
@@ -97,6 +122,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
 
   async function cancelCode() {
     codeEntry = null; codeValue = "";
+    closeAuthWindow();
     try { await send({ type: "sync-dropbox-cancel" }); } catch { /* pending expires by itself */ }
     render();
   }

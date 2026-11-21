@@ -4,7 +4,7 @@ Owner: the user. Not run yet; nothing here is automated.
 
 ## Setup
 - [ ] Reload the extension (nothing to configure: the app key is embedded, no redirect URI)
-- [ ] Code-paste sign-in works: Sync > Sign in to Dropbox..., allow, copy the code, paste, Connect
+- [ ] Code-paste sign-in works: Sync > Sign in to Dropbox...; a small Dropbox window opens next to the manager (manager stays visible); allow, copy the code, paste, Connect
 - [ ] Account name appears after sign-in (real Dropbox accepts `users/get_current_account` with no body and no Content-Type)
 
 ## Sync
@@ -14,7 +14,8 @@ Owner: the user. Not run yet; nothing here is automated.
 
 ## Auth edge cases
 - [ ] Revoke access in Dropbox: sign-in banner appears; "Sign in" recovers
-- [ ] Manager closed mid-flow (after the Dropbox tab opened), reopened > Sync: the paste field is back and pasting works within 15 min; after 15 min no field, start again
+- [ ] Manager closed mid-flow (after the Dropbox window opened), reopened > Sync: the paste field is back and pasting works within 15 min; after 15 min no field, start again
+- [ ] The Dropbox window closes after Connect succeeds and after Cancel
 - [ ] Cancel at the paste step: back to the buttons; while already linked, link stays intact
 - [ ] Wrong or expired code: error shown, nothing linked; a new Sign in works
 - [ ] Offline while pressing Connect: error shown, field stays; Connect works once online

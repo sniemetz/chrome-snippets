@@ -28,7 +28,7 @@ Two backends: **Dropbox** (sign-in, no local folder) and **Folder** (your own to
 
 ### Dropbox
 
-- Sign-in (nothing to configure): manager > **Sync** > **Sign in to Dropbox...**, allow access on the Dropbox page, copy the code it shows, paste it into the field in the Sync panel, click **Connect**. No redirect URI; PKCE with an embedded public app key. If the manager closes meanwhile, reopen manager > Sync: the paste field comes back (the pending sign-in is kept for 15 min, then start again). In the toolbar popup, the paused "Sign in" button opens the manager directly on Sync for the paste step. A network error keeps the field: press **Connect** again.
+- Sign-in (nothing to configure): manager > **Sync** > **Sign in to Dropbox...**, a small Dropbox window opens next to the manager: allow access, copy the code it shows, paste it into the field in the Sync panel, click **Connect**. No redirect URI; PKCE with an embedded public app key. If the manager closes meanwhile, reopen manager > Sync: the paste field comes back (the pending sign-in is kept for 15 min, then start again). In the toolbar popup, the paused "Sign in" button opens the manager directly on Sync for the paste step. A network error keeps the field: press **Connect** again.
 - Scopes: `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read`.
 - Storage: Dropbox app folder only (`Apps/<your app>/`), one `/<uuid>.json` per snippet (plain text, not encrypted).
 - Tokens: `chrome.storage.local` key `dropboxAuth`. Sync keeps running after Chrome restarts, no prompt.
