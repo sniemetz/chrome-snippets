@@ -1,5 +1,5 @@
 {
-  "name": "snippet-saver",
+  "name": "chrome-snippets",
   "private": true,
   "type": "module",
   "scripts": { "test": "node --test" }

@@ -1,14 +1,13 @@
-# Privacy Policy – Snippet Saver
+# Privacy Policy – ChromeSnippets
 
 _Last updated: 2026-11-21_
 
-Snippet Saver is a Chrome extension that stores text snippets and pastes them into editable fields. It has no servers of its own. The developer does not receive, collect, or have access to your data.
+ChromeSnippets is a Chrome extension that stores text snippets and pastes them into editable fields. It has no servers of its own. The developer does not receive, collect, or have access to your data.
 
 ## What the extension stores
 
 - **Your snippets** (name, content, tags, timestamps) and your settings. They are stored in your browser in `chrome.storage.local` and stay on your device.
 - If you turn on **Dropbox sync**: a Dropbox access token and refresh token, and the name of your Dropbox account (display name or email) so the extension can detect a different account. They are stored in `chrome.storage.local` on your device only.
-- If you turn on **folder sync**: a handle to the local folder you chose, stored in the browser's IndexedDB.
 
 ## What leaves your device
 
@@ -53,4 +52,4 @@ Changes to this policy are published in this file with a new "Last updated" date
 
 ## Contact
 
-Open an issue in the project repository: <https://github.com/sniemetz/snippet-saver/issues>.
+Open an issue in the project repository: <https://github.com/sniemetz/chrome-snippets/issues>.

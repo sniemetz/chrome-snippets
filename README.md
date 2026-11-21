@@ -1,4 +1,4 @@
-# Snippet Saver
+# ChromeSnippets
 
 Chrome extension (Manifest V3). Save, search, and paste text snippets.
 
@@ -20,28 +20,26 @@ Chrome extension (Manifest V3). Save, search, and paste text snippets.
 - Manager window (right-click > **Open Snippets**, or "Open manager"): same list with a **Copy** button per row (copies and shows "Copied!"). **Copy content** copies the text in the editor. **Save** is enabled only after a change.
 - **Data** menu (bottom left): Export, Import (adds, skips existing names), Restore (replaces all). **Tags**: rename or delete a tag across all snippets.
 - Right-click in an editable field: **Paste snippet** (opens the palette).
-- Right-click in an editable field inside an iframe from another site (for example Workfront inside a wrapper page): Paste snippet opens the palette on the top page and copies the snippet; press Ctrl+V. For direct insertion right-click inside that iframe and use **Allow Snippets on this site** once (the item appears only inside iframes) (Chrome asks for permission for that site only). Remove it at `chrome://extensions` > Snippet Saver > Details > Site access.
+- Right-click in an editable field inside an iframe from another site (for example Workfront inside a wrapper page): Paste snippet opens the palette on the top page and copies the snippet; press Ctrl+V. For direct insertion right-click inside that iframe and use **Allow Snippets on this site** once (the item appears only inside iframes) (Chrome asks for permission for that site only). Remove it at `chrome://extensions` > ChromeSnippets > Details > Site access.
 - Right-click on selected text: **Add as snippet**.
 - A `!` on the toolbar icon for 3 seconds means the action failed on this page.
 
 ## Sync between devices
 
-Two backends: **Dropbox** (sign-in, no local folder) and **Folder** (your own tool syncs a local folder). Pick one in manager > **Sync**. Design: `docs/superpowers/specs/2026-11-21-cloud-sync-design.md`.
-
-### Dropbox
+Sync uses **Dropbox** (sign-in, nothing to install). Turn it on in manager > **Sync**. Design: `docs/superpowers/specs/2026-11-21-cloud-sync-design.md`.
 
 - Sign-in (nothing to configure): manager > **Sync** > **Sign in to Dropbox...**, a small Dropbox window opens next to the manager: allow access, copy the code it shows, paste it into the field in the Sync panel, click **Connect**. No redirect URI; PKCE with an embedded public app key. If the manager closes meanwhile, reopen manager > Sync: the paste field comes back (the pending sign-in is kept for 15 min, then start again). In the toolbar popup, the paused "Sign in" button opens the manager directly on Sync for the paste step. A network error keeps the field: press **Connect** again.
 - Scopes: `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read`.
 - Storage: Dropbox app folder only (`Apps/<your app>/`), one `/<uuid>.json` per snippet (plain text, not encrypted).
 - Tokens: `chrome.storage.local` key `dropboxAuth`. Sync keeps running after Chrome restarts, no prompt.
-- Same schedule, merge, conflict and guard rules as the folder backend (below).
+- Schedule, merge, conflict and guard rules: see below.
 - Access revoked or token invalid: banner "Sign in to Dropbox again" with a **Sign in** button.
-- **Unlink** with the Dropbox backend linked revokes the token at Dropbox and clears it locally. Switching to a folder link also revokes and clears it. Snippets and remote files stay.
+- **Unlink** revokes the token at Dropbox and clears it locally. Your snippets and the Dropbox files stay. Linking again is a fresh first link: snippets deleted on either side since the last sync come back.
 - Limits:
   - A wrong or expired code needs a new **Sign in to Dropbox...** (each code works once, with the verifier of the latest attempt).
   - Switching Dropbox account by signing in again is not supported: **Unlink** first.
 
-#### Developer setup (own Dropbox app only)
+### Developer setup (own Dropbox app only)
 
 Not needed for normal use: the extension ships with a public app key (`extension/lib/dropbox-config.js`). To use your own app:
 
@@ -50,17 +48,14 @@ Not needed for normal use: the extension ships with a public app key (`extension
 
 - Manual checklist: `docs/superpowers/plans/2026-11-21-dropbox-sync-manual-checklist.md`.
 
-### Folder
+### How sync behaves
 
-- Open the manager window > **Sync** > **Choose folder...** Pick a folder that your own tool (Dropbox, Google Drive, Box, Syncthing, ...) keeps in sync across devices. The first prompt only offers Allow / Don't allow. After every Chrome restart the permission is gone: the toolbar icon shows `!` and the toolbar popup opens on a **Re-allow folder** button (also in the Sync panel). Choose **Allow on every visit** there; sync then keeps running in the background until the next restart.
-- The folder gets one `<id>.json` file per snippet (plain text, not encrypted). Other files in the folder are ignored. Cloud tools may keep files "online-only"; those are retried on the next run.
 - Sync runs in the background: 2 seconds after a change, every 15 min (choose 15 min, 30 min, 1 h, 2 h, 6 h or 12 h), when the computer wakes or unlocks, at browser start, and on **Sync now**.
 - Deleting a snippet on one device deletes it on the others. If you edit a snippet on one device and delete it on another, the edit wins.
-- Safety guard: if many snippets would be deleted or overwritten at once (more than 5 and 20%, or the folder is suddenly empty), sync stops and asks: **Folder wins**, **This device wins** or **Cancel**. The choice applies only to the conflicting snippets; everything else is merged. Restoring a smaller library triggers this; **This device wins** mirrors the restore into the folder. Export files now contain snippet ids, so restoring your own export keeps the same snippets (older export files still restore, with new ids).
+- Safety guard: if many snippets would be deleted or overwritten at once (more than 5 and 20%, or Dropbox is suddenly empty), sync stops and asks: **Dropbox wins**, **This device wins** or **Cancel**. The choice applies only to the conflicting snippets; everything else is merged. Restoring a smaller library triggers this; **This device wins** mirrors the restore into Dropbox. Export files contain snippet ids, so restoring your own export keeps the same snippets (older export files still restore, with new ids).
 - First link merges: nothing is deleted. Two snippets with the same name and the same content become one. Same name, different content: both stay, one is renamed `Name (2)` (the same one on every device).
 - The same snippet edited on two devices: the newest edit wins.
-- A `!` on the toolbar icon means sync needs you: **Re-allow folder** (permission lost) or a conflict decision.
-- **Unlink** keeps your snippets and the folder files. Linking again (the same or another folder) is a fresh first link: snippets deleted on either side since the last sync come back.
+- A `!` on the toolbar icon means sync needs you: **Sign in** (access lost) or a conflict decision.
 
 ## Keyboard shortcuts
 

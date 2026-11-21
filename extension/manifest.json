@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Snippet Saver",
+  "name": "ChromeSnippets",
   "version": "0.1.0",
   "description": "Save text snippets with tags, search them, and paste them into any editable field.",
   "minimum_chrome_version": "102",

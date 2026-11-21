@@ -5,7 +5,7 @@
 export function openPalette(metas, options) {
   // copyOnly: used when the page's frame refused injection; picking copies instead of inserting.
   const copyOnly = !!(options && options.copyOnly);
-  const HOST_ID = "__snippet_saver_palette__";
+  const HOST_ID = "__chrome_snippets_palette__";
   if (document.getElementById(HOST_ID)) return;
 
   const NON_TEXT = ["button", "checkbox", "radio", "submit", "file", "color", "range", "image", "reset", "hidden"];
