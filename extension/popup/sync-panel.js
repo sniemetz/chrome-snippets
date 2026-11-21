@@ -1,5 +1,5 @@
 import { INTERVALS, createSyncState, needsAttention } from "../lib/sync-state.js";
-import { pausedView, pausedStatusText, linkedView, unlinkText, signinInGate, codeCheck, codeApplies } from "../lib/sync-view.js";
+import { syncBusy, syncButtonView, unlinkDisabled, pausedView, pausedStatusText, linkedView, unlinkText, signinInGate, codeCheck, codeApplies } from "../lib/sync-view.js";
 
 // Sync panel (manager window). Reads the persisted sync state and re-renders when it changes.
 // getHandle/putHandle/deleteHandle: directory handle store; send(msg): runtime message to the service worker.
@@ -19,6 +19,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
   let codeEntry = null; // "link" | "signin" while the paste-code field is shown (mirrors the persisted dropboxPending mode)
   let codeValue = "";
   let focusCode = false;
+  let syncClicked = false; // Sync now clicked, answer (end of run) not yet received
 
   async function pick() {
     let dir;
@@ -106,7 +107,16 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     input.oninput = () => { codeValue = input.value; };
     input.onkeydown = (e) => { if (e.key === "Enter") connectDropbox(); };
     if (focusCode) { focusCode = false; setTimeout(() => input.focus(), 0); }
-    return row(input, btn("Connect", connectDropbox, { className: "primary", disabled: signingIn }), btn("Cancel", cancelCode, { disabled: signingIn }));
+    input.className = "codeinput";
+    return el("div", { className: "coderow" }, input,
+      row(btn("Connect", connectDropbox, { className: "primary", disabled: signingIn }), btn("Cancel", cancelCode, { disabled: signingIn })));
+  }
+
+  async function syncNow() {
+    if (syncClicked) return;
+    syncClicked = true;
+    render(); // disabled + spinner immediately, before the state arrives
+    try { await send({ type: "sync-now" }); } catch { /* state shows the outcome */ } finally { syncClicked = false; render(); }
   }
 
   function statusText(st) {
@@ -174,7 +184,11 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     banners(st, true);
     const lv = linkedView(st);
     root.append(row(el("span", { textContent: lv.label }), ...(lv.showChangeFolder ? [btn("Change folder...", pick)] : [])));
-    root.append(row(el("span", { textContent: statusText(st) }), btn("Sync now", () => send({ type: "sync-now" }))));
+    const busy = syncBusy(st, syncClicked);
+    const sv = syncButtonView(busy);
+    const syncBtn = btn(sv.label, syncNow, { disabled: sv.disabled, ariaBusy: String(busy) });
+    if (sv.spinner) syncBtn.prepend(el("span", { className: "spinner", ariaHidden: "true" }));
+    root.append(row(el("span", { textContent: statusText(st) }), syncBtn));
     if (st.message && st.status !== "error" && st.status !== "paused") root.append(el("p", { className: "muted", textContent: st.message }));
     if (st.summary) root.append(el("p", { className: "muted", textContent: `First sync: ${st.summary}` }));
     const sel = el("select", { ariaLabel: "Check every" });
@@ -184,10 +198,10 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     if (confirmUnlink) {
       root.append(
         el("p", { className: "err", textContent: unlinkText(st) }),
-        row(btn("Cancel", () => { confirmUnlink = false; render(); }), btn("Unlink", async () => { confirmUnlink = false; await send({ type: "sync-unlink" }); })),
+        row(btn("Cancel", () => { confirmUnlink = false; render(); }), btn("Unlink", async () => { confirmUnlink = false; await send({ type: "sync-unlink" }); }, { disabled: unlinkDisabled(busy) })),
       );
     } else {
-      root.append(row(btn("Unlink", () => { confirmUnlink = true; render(); })));
+      root.append(row(btn("Unlink", () => { confirmUnlink = true; render(); }, { disabled: unlinkDisabled(busy) })));
     }
   }
 

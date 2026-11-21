@@ -29,6 +29,11 @@ export const unlinkText = (st) => isDropbox(st)
 // tab closes it), so the compact toolbar gate opens the manager window instead of signing in itself.
 export const signinInGate = (compact) => (compact ? "open-manager" : "inline");
 
+// Sync now button / Unlink guard. busy = a run is in flight (persisted `syncing` flag or a click not yet answered).
+export const syncBusy = (st, clicked = false) => !!clicked || !!st.syncing;
+export const syncButtonView = (busy) => ({ label: busy ? "Syncing..." : "Sync now", disabled: !!busy, spinner: !!busy });
+export const unlinkDisabled = (busy) => !!busy;
+
 // Does a pending/open paste field of this mode ("link"|"signin") still make sense for the current state?
 export function codeApplies(st, mode) {
   if (mode === "link") return !st.linked;

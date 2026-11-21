@@ -9,7 +9,7 @@ export const INTERVALS = [
 export const defaultState = () => ({
   linked: false, folderName: "", intervalMin: 15, status: "ok", lastSync: null,
   message: "", summary: null, decision: null, synced: {},
-  backend: "folder", account: "",
+  backend: "folder", account: "", syncing: false,
 });
 
 export function createSyncState(area = globalThis.chrome?.storage?.local) {

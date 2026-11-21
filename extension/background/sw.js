@@ -90,6 +90,7 @@ async function doSync(opts) {
   try {
     const st = await syncState.get();
     if (!st.linked) return;
+    await syncState.set({ syncing: true }); // panel shows a spinner; cleared in finally
     try {
       if (st.backend === "dropbox") {
         await runSync({ store, folder: dropboxAdapter(), state: syncState, ...opts });
@@ -105,9 +106,11 @@ async function doSync(opts) {
       console.warn("Sync failed:", err);
       await syncState.set({ status: "error", message: String(err?.message ?? err) });
     }
+    await syncState.set({ syncing: false });
     await syncBadge();
   } catch (err) {
     console.warn("Sync bookkeeping failed:", err);
+    try { await syncState.set({ syncing: false }); } catch { /* storage unavailable */ }
   }
 }
 
@@ -258,6 +261,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === SYNC_ALARM) enqueue(); });
 chrome.idle.onStateChanged.addListener((state) => { if (state === "active") enqueue(); });
 chrome.runtime.onStartup.addListener(async () => { await ensureAlarm(); await syncBadge(); enqueue(); });
+// A worker killed mid-run leaves syncing=true; a fresh worker has nothing running, queued first.
+exclusive(async () => {
+  const st = await syncState.get();
+  if (st.syncing) await syncState.set({ syncing: false });
+}).catch(() => {});
 ensureAlarm();
 
 // Opens the palette in the clicked frame. A cross-origin frame (e.g. an iframe inside a wrapper

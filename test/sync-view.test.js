@@ -55,3 +55,16 @@ test("codeApplies: link only when unlinked, signin only when Dropbox is paused",
   assert.equal(codeApplies({ linked: false }, "signin"), false);
   assert.equal(codeApplies({ linked: false }, null), false);
 });
+
+import { syncBusy, syncButtonView, unlinkDisabled } from "../extension/lib/sync-view.js";
+test("syncBusy: persisted flag or pending click", () => {
+  assert.equal(syncBusy({ syncing: false }), false);
+  assert.equal(syncBusy({ syncing: true }), true);
+  assert.equal(syncBusy({}, true), true);
+});
+test("button and unlink states follow busy", () => {
+  assert.deepEqual(syncButtonView(false), { label: "Sync now", disabled: false, spinner: false });
+  assert.deepEqual(syncButtonView(true), { label: "Syncing...", disabled: true, spinner: true });
+  assert.equal(unlinkDisabled(true), true);
+  assert.equal(unlinkDisabled(false), false);
+});

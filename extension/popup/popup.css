@@ -93,3 +93,14 @@ body[data-view="window"] #openMgrBtn { display: none; }
 .gate h2 { font-size: 13px; margin: 0; }
 .gate .syncrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 body.gating .main { display: none; }
+
+/* Dropbox code paste: own full-width row, Connect/Cancel below. */
+.coderow { display: flex; flex-direction: column; gap: 8px; }
+.coderow .syncrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.codeinput { width: 100%; box-sizing: border-box; padding: 8px 10px; font: 14px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+/* Sync now spinner (pure CSS). */
+.spinner { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; box-sizing: border-box;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-right-color: currentColor; opacity: .6; } }
