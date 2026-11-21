@@ -6,7 +6,18 @@ import { memArea } from "./helpers/mem-area.js";
 test("defaults when empty", async () => {
   assert.deepEqual(await createSyncState(memArea()).get(), defaultState());
   assert.deepEqual(defaultState(), { linked: false, folderName: "", intervalMin: 15, status: "ok", lastSync: null,
-    message: "", summary: null, decision: null, synced: {} });
+    message: "", summary: null, decision: null, synced: {}, backend: "folder", account: "" });
+});
+test("defaultState has backend folder and empty account", () => {
+  assert.equal(defaultState().backend, "folder");
+  assert.equal(defaultState().account, "");
+});
+test("state saved without backend reads back as folder", async () => {
+  const area = memArea();
+  await area.set({ sync: { linked: true, folderName: "f", intervalMin: 30 } });
+  const s = await createSyncState(area).get();
+  assert.equal(s.backend, "folder");
+  assert.equal(s.account, "");
 });
 test("set merges; get returns defaults plus patch", async () => {
   const st = createSyncState(memArea());
