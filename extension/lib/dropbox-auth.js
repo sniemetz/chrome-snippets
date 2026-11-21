@@ -20,27 +20,14 @@ export async function makePkce(random = crypto) {
   return { verifier, challenge: b64url(new Uint8Array(digest)) };
 }
 
-export function buildAuthUrl({ appKey, redirectUri, challenge, state }) {
+// No redirect_uri: Dropbox shows the user an access code to paste back. The code is exchanged with our
+// stored PKCE verifier, so a foreign code fails the exchange and no `state` is needed.
+export function buildAuthUrl({ appKey, challenge }) {
   const p = new URLSearchParams({
     client_id: appKey, response_type: "code", code_challenge: challenge,
-    code_challenge_method: "S256", token_access_type: "offline", redirect_uri: redirectUri, state,
+    code_challenge_method: "S256", token_access_type: "offline",
   });
   return `${AUTH_URL}?${p}`;
-}
-
-export function makeState(random = crypto) {
-  return b64url(random.getRandomValues(new Uint8Array(16)));
-}
-
-// Parses the redirect URL from launchWebAuthFlow; returns the code or throws.
-export function parseAuthCallback(url, expectedState) {
-  if (typeof url !== "string" || !url) throw new Error("Dropbox sign-in was cancelled");
-  const p = new URL(url).searchParams;
-  if (p.get("state") !== expectedState) throw new Error("Dropbox sign-in state mismatch");
-  if (p.get("error")) throw new Error(`Dropbox sign-in failed (${p.get("error")})`);
-  const code = p.get("code");
-  if (!code) throw new Error("Dropbox sign-in returned no code");
-  return code;
 }
 
 function validToken(b) {
@@ -63,10 +50,10 @@ export function createDropboxAuth({ fetch, area, appKey, now = Date.now }) {
     return { res, body };
   }
 
-  async function signIn(code, verifier, redirectUri) {
+  async function signIn(code, verifier) {
     const { res, body } = await post({
       grant_type: "authorization_code", code, code_verifier: verifier,
-      client_id: appKey, redirect_uri: redirectUri,
+      client_id: appKey,
     });
     if (!res.ok) throw new Error(`Dropbox sign-in failed (${res.status}${body && body.error ? " " + body.error : ""})`);
     if (!validToken(body) || typeof body.refresh_token !== "string" || !body.refresh_token) {

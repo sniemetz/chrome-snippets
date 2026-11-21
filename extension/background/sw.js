@@ -6,7 +6,8 @@ import { centeredPosition } from "../lib/position.js";
 import { createSyncState, INTERVALS } from "../lib/sync-state.js";
 import { createFolder } from "../lib/folder.js";
 import { createDropbox } from "../lib/dropbox.js";
-import { createDropboxAuth, makePkce, makeState, buildAuthUrl, parseAuthCallback } from "../lib/dropbox-auth.js";
+import { createDropboxAuth, makePkce, buildAuthUrl } from "../lib/dropbox-auth.js";
+import { createPending } from "../lib/dropbox-pending.js";
 import { DROPBOX_APP_KEY } from "../lib/dropbox-config.js";
 import { runSync } from "../lib/sync-engine.js";
 import { getHandle, deleteHandle, promotePendingHandle } from "../popup/handle-store.js";
@@ -57,16 +58,24 @@ async function syncBadge() {
 const dropboxAuth = () => createDropboxAuth({ fetch: (...a) => fetch(...a), area: chrome.storage.local, appKey: DROPBOX_APP_KEY });
 const dropboxAdapter = () => createDropbox({ fetch: (...a) => fetch(...a), auth: dropboxAuth() });
 
-// Interactive Dropbox sign-in; stores tokens only on success. Throws on cancel or any failure.
-async function dropboxSignIn() {
+const dropboxPending = () => createPending({ area: chrome.storage.local });
+
+// Step 1 of the code-paste sign-in: PKCE verifier is persisted (the worker may be killed before the user pastes).
+async function dropboxBegin() {
   if (!DROPBOX_APP_KEY) throw new Error("Dropbox app key not configured");
-  const redirectUri = chrome.identity.getRedirectURL();
   const { verifier, challenge } = await makePkce();
-  const state = makeState();
-  const url = buildAuthUrl({ appKey: DROPBOX_APP_KEY, redirectUri, challenge, state });
-  const returned = await chrome.identity.launchWebAuthFlow({ url, interactive: true });
-  const code = parseAuthCallback(returned, state);
-  await dropboxAuth().signIn(code, verifier, redirectUri);
+  await dropboxPending().begin(verifier);
+  return buildAuthUrl({ appKey: DROPBOX_APP_KEY, challenge });
+}
+
+// Step 2: exchange the pasted code; stores tokens only on success. The pending verifier is consumed by any attempt.
+async function dropboxSignIn(rawCode) {
+  if (!DROPBOX_APP_KEY) throw new Error("Dropbox app key not configured");
+  const code = typeof rawCode === "string" ? rawCode.trim() : "";
+  if (!code) throw new Error("Paste the code from Dropbox");
+  const verifier = await dropboxPending().consume();
+  if (!verifier) throw new Error("Start the Dropbox sign-in again");
+  await dropboxAuth().signIn(code, verifier);
 }
 
 async function doSync(opts) {
@@ -151,10 +160,16 @@ async function handleSyncMessage(msg) {
         await doSync({ firstLink: true });
         return { ok: true };
       });
+    case "sync-dropbox-begin":
+      try {
+        return { ok: true, url: await dropboxBegin() };
+      } catch (err) {
+        return { ok: false, error: String(err?.message ?? err) };
+      }
     case "sync-link-dropbox":
       return exclusive(async () => {
         try {
-          await dropboxSignIn(); // sign in first: a failure leaves the existing link untouched
+          await dropboxSignIn(msg.code); // sign in first: a failure leaves the existing link untouched
         } catch (err) {
           return { ok: false, error: String(err?.message ?? err) };
         }
@@ -179,7 +194,7 @@ async function handleSyncMessage(msg) {
         const st = await syncState.get();
         if (!(st.linked && st.backend === "dropbox")) return { ok: false, error: "Not linked to Dropbox" };
         try {
-          await dropboxSignIn();
+          await dropboxSignIn(msg.code);
         } catch (err) {
           return { ok: false, error: String(err?.message ?? err) };
         }

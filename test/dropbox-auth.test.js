@@ -30,7 +30,7 @@ function setup(fetch, now = () => 1_000_000) {
 }
 const tok = (o = {}) => ({ refresh: "R", access: "A", expiresAt: 1_000_000 + 3_600_000, invalid: false, ...o });
 
-test("config app key is an empty string", () => assert.equal(DROPBOX_APP_KEY, ""));
+test("config app key is the embedded public client id", () => assert.equal(DROPBOX_APP_KEY, "c3406m2riokk0lp"));
 
 test("makePkce matches RFC 7636 vector", async () => {
   const random = { getRandomValues: (a) => { a.set(RFC_BYTES); return a; } };
@@ -43,7 +43,7 @@ test("makePkce default: verifier 43-128 base64url, challenge no padding", async 
 });
 
 test("buildAuthUrl contains every param", () => {
-  const u = new URL(buildAuthUrl({ appKey: "KEY", redirectUri: "https://x.chromiumapp.org/cb", challenge: "CH", state: "ST" }));
+  const u = new URL(buildAuthUrl({ appKey: "KEY", challenge: "CH" }));
   assert.equal(u.origin + u.pathname, "https://www.dropbox.com/oauth2/authorize");
   const p = u.searchParams;
   assert.equal(p.get("client_id"), "KEY");
@@ -51,25 +51,25 @@ test("buildAuthUrl contains every param", () => {
   assert.equal(p.get("code_challenge"), "CH");
   assert.equal(p.get("code_challenge_method"), "S256");
   assert.equal(p.get("token_access_type"), "offline");
-  assert.equal(p.get("redirect_uri"), "https://x.chromiumapp.org/cb");
-  assert.equal(p.get("state"), "ST");
+  assert.equal(p.has("redirect_uri"), false);
+  assert.equal(p.has("state"), false);
 });
 
 test("signIn posts code exchange and stores tokens", async () => {
   const f = fakeFetch(json(200, { access_token: "A1", refresh_token: "R1", expires_in: 14400 }));
   const { area, auth } = setup(f);
-  await auth.signIn("CODE", "VER", "https://r/cb");
+  await auth.signIn("CODE", "VER");
   assert.equal(f.calls[0].url, "https://api.dropboxapi.com/oauth2/token");
   assert.equal(f.calls[0].init.method, "POST");
   assert.deepEqual(f.calls[0].body, { grant_type: "authorization_code", code: "CODE", code_verifier: "VER",
-    client_id: "KEY", redirect_uri: "https://r/cb" });
+    client_id: "KEY" });
   assert.deepEqual(area.data.dropboxAuth, { refresh: "R1", access: "A1", expiresAt: 1_000_000 + 14400 * 1000, invalid: false });
   assert.equal(await auth.hasLink(), true);
 });
 test("signIn failure throws and stores nothing", async () => {
   const f = fakeFetch(json(400, { error: "invalid_grant" }));
   const { area, auth } = setup(f);
-  await assert.rejects(auth.signIn("C", "V", "r"), Error);
+  await assert.rejects(auth.signIn("C", "V"), Error);
   assert.equal(area.data.dropboxAuth, undefined);
 });
 
@@ -117,13 +117,13 @@ for (const [name, body] of [["missing access_token", { expires_in: 1 }], ["empty
   });
   test(`signIn with ${name} throws and stores nothing`, async () => {
     const { area, auth } = setup(fakeFetch(json(200, { refresh_token: "R", ...body })));
-    await assert.rejects(auth.signIn("C", "V", "r"), (e) => /bad response/.test(e.message));
+    await assert.rejects(auth.signIn("C", "V"), (e) => /bad response/.test(e.message));
     assert.equal(area.data.dropboxAuth, undefined);
   });
 }
 test("signIn without refresh_token throws and stores nothing", async () => {
   const { area, auth } = setup(fakeFetch(json(200, { access_token: "A", expires_in: 1 })));
-  await assert.rejects(auth.signIn("C", "V", "r"), (e) => /bad response/.test(e.message));
+  await assert.rejects(auth.signIn("C", "V"), (e) => /bad response/.test(e.message));
   assert.equal(area.data.dropboxAuth, undefined);
 });
 test("network error on refresh throws plain Error, invalid stays false", async () => {
@@ -184,18 +184,4 @@ test("revoke with failing fetch does not throw", async () => {
   const { area, auth } = setup(fakeFetch(new Error("boom"), new Error("boom")));
   await area.set({ dropboxAuth: tok() });
   await auth.revoke();
-});
-
-test("parseAuthCallback returns the code when state matches", async () => {
-  const { parseAuthCallback } = await import("../extension/lib/dropbox-auth.js");
-  assert.equal(parseAuthCallback("https://x.chromiumapp.org/?code=abc&state=s1", "s1"), "abc");
-});
-
-test("parseAuthCallback rejects state mismatch, missing state, error and missing code", async () => {
-  const { parseAuthCallback } = await import("../extension/lib/dropbox-auth.js");
-  assert.throws(() => parseAuthCallback("https://x.chromiumapp.org/?code=abc&state=zz", "s1"), /state/);
-  assert.throws(() => parseAuthCallback("https://x.chromiumapp.org/?code=abc", "s1"), /state/);
-  assert.throws(() => parseAuthCallback("https://x.chromiumapp.org/?error=access_denied&state=s1", "s1"), /access_denied/);
-  assert.throws(() => parseAuthCallback("https://x.chromiumapp.org/?state=s1", "s1"), /code/);
-  assert.throws(() => parseAuthCallback(undefined, "s1"), /sign-in/);
 });

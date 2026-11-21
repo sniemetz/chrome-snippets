@@ -3,10 +3,8 @@
 Owner: the user. Not run yet; nothing here is automated.
 
 ## Setup
-- [ ] Register the Dropbox app (scoped, App folder, 4 scopes) and enter the key in `extension/lib/dropbox-config.js`
-- [ ] Reload the extension
-- [ ] Add the redirect URI shown in manager > Sync to the Dropbox app
-- [ ] Sign in
+- [ ] Reload the extension (nothing to configure: the app key is embedded, no redirect URI)
+- [ ] Code-paste sign-in works: Sync > Sign in to Dropbox..., allow, copy the code, paste, Connect
 - [ ] Account name appears after sign-in (real Dropbox accepts `users/get_current_account` with no body and no Content-Type)
 
 ## Sync
@@ -16,6 +14,10 @@ Owner: the user. Not run yet; nothing here is automated.
 
 ## Auth edge cases
 - [ ] Revoke access in Dropbox: sign-in banner appears; "Sign in" recovers
-- [ ] Sign-in window lifetime in the MV3 worker: leave the window open for a while, then finish; sign-in completes
-- [ ] Cancel the sign-in while already linked: link stays intact
+- [ ] Popup closed mid-flow (Dropbox tab opened), reopened manager > Sync: pasting the code still works within 15 min; after 15 min it says to start again
+- [ ] Cancel at the paste step: back to the buttons; while already linked, link stays intact
+- [ ] Wrong or expired code: error shown, nothing linked; a new Sign in works
+- [ ] Re-sign-in (after revoke) with the same account: OK
+- [ ] Re-sign-in with a different account: refused, sync stays paused
+- [ ] Toolbar popup with paused Dropbox: "Sign in" opens the manager window, which has the paste field
 - [ ] Unlink: the app is gone from Dropbox's connected-apps list

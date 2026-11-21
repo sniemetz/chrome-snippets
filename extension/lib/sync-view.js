@@ -24,3 +24,13 @@ export function linkedView(st) {
 export const unlinkText = (st) => isDropbox(st)
   ? "Unlink Dropbox? Snippets and Dropbox files stay as they are. Snippets deleted on either side since the last sync come back if you link again."
   : "Unlink this folder? Snippets and folder files stay as they are. Snippets deleted on either side since the last sync come back if you link again.";
+
+// Paused Dropbox sign-in needs a text field that must survive the toolbar popup closing (opening the Dropbox
+// tab closes it), so the compact toolbar gate opens the manager window instead of signing in itself.
+export const signinInGate = (compact) => (compact ? "open-manager" : "inline");
+
+// Code-paste step: returns the trimmed code or an inline message (no request is sent for an empty code).
+export function codeCheck(raw) {
+  const code = String(raw ?? "").trim();
+  return code ? { code } : { error: "Paste the code from Dropbox first." };
+}

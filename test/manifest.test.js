@@ -5,9 +5,9 @@ import { readFileSync } from "node:fs";
 const root = new URL("../extension/", import.meta.url);
 const manifest = () => JSON.parse(readFileSync(new URL("manifest.json", root), "utf8"));
 
-test("permissions are the six from the spec plus alarms, idle (folder sync) and identity (Dropbox)", () => {
+test("permissions are the six from the spec plus alarms, idle (folder sync)", () => {
   assert.deepEqual([...manifest().permissions].sort(), [
-    "activeTab", "alarms", "clipboardWrite", "contextMenus", "identity", "idle", "scripting", "storage", "unlimitedStorage",
+    "activeTab", "alarms", "clipboardWrite", "contextMenus", "idle", "scripting", "storage", "unlimitedStorage",
   ]);
 });
 

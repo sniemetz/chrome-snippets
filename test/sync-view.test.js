@@ -33,3 +33,14 @@ test("dropbox label falls back when account missing or empty", () => {
   assert.equal(linkedView({ backend: "dropbox", account: "" }).label, "Dropbox: connected");
   assert.equal(linkedView({ backend: "dropbox", account: "a@b.c" }).label, "Dropbox: a@b.c");
 });
+
+import { signinInGate, codeCheck } from "../extension/lib/sync-view.js";
+test("compact gate delegates Dropbox sign-in to the manager window", () => {
+  assert.equal(signinInGate(true), "open-manager");
+  assert.equal(signinInGate(false), "inline");
+});
+test("codeCheck trims and rejects empty", () => {
+  assert.deepEqual(codeCheck("  abc \n"), { code: "abc" });
+  assert.match(codeCheck("   ").error, /Paste the code/);
+  assert.match(codeCheck(undefined).error, /Paste the code/);
+});

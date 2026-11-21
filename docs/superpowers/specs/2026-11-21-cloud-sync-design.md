@@ -24,11 +24,11 @@ Items marked **[call]** are my decisions, open to correction.
 
 ## Constraints
 - MV3 service worker does all sync; it can be killed at any time. Tokens live in `chrome.storage.local`, not in memory.
-- Chrome only (`chrome.identity.launchWebAuthFlow`).
-- The OAuth redirect URL is `chrome.identity.getRedirectURL()` (`https://<extension-id>.chromiumapp.org/`). Unpacked extension IDs differ per machine, so the manifest gets no fixed `key`: each machine registers its own redirect URI (decided, see below).
-- Setup per machine: read the redirect URI from `chrome.identity.getRedirectURL()` (shown in the sync panel; do not build it by hand) and add `https://<id>.chromiumapp.org/` to the Dropbox app's redirect URIs.
-- New permissions: `identity`; host permissions `https://api.dropboxapi.com/*`, `https://content.dropboxapi.com/*`.
-- The user must register a Dropbox app (scoped access, "App folder", scopes `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read` **[call: list_folder and the account name need the last two]**, plus the redirect URI). Only the user can do this; the app key is entered into the code/config afterwards.
+- Sign-in is the no-redirect code-paste flow (see "Decided: code-paste sign-in"); no `chrome.identity`.
+- No OAuth redirect URI and no fixed manifest `key`: the sign-in does not depend on the extension ID.
+- Setup: none for users (embedded public app key). Developers who register their own app: scoped access, "App folder", 4 scopes Submitted, PKCE on, no redirect URI.
+- New permissions: host permissions `https://api.dropboxapi.com/*`, `https://content.dropboxapi.com/*` (no `identity`).
+- The Dropbox app is registered once by the developer (scoped access, "App folder", scopes `files.content.read`, `files.content.write`, `files.metadata.read`, `account_info.read` **[call: list_folder and the account name need the last two]**); its public key is embedded in `lib/dropbox-config.js`.
 
 ## Approaches
 - A (chosen): Dropbox first, Drive second, both behind the existing `folder` interface. Fastest path to the goal; proves the adapter contract before the harder Google auth.
@@ -45,13 +45,13 @@ Items marked **[call]** are my decisions, open to correction.
   - `remove(id)`: `files/delete_v2`; "not found" is success.
   - Retries: honour `429`/`Retry-After`, 1 retry on 5xx/network **[call]**; otherwise surface the error (the engine already skips per file and retries next run).
 - **Auth** `lib/dropbox-auth.js`: PKCE (S256) authorization-code flow.
-  - Link: the service worker calls `launchWebAuthFlow({interactive:true})` with `token_access_type=offline`, exchanges the code, stores `{refresh, access, expiresAt}` **[call: sw does it, since a popup page closes when the auth window opens]**.
+  - Link (code-paste): `sync-dropbox-begin` makes PKCE, stores `{verifier, createdAt}` in `chrome.storage.local` `dropboxPending` (expires after 15 min, consumed by any exchange attempt, overwritten by a newer begin) and returns the authorize URL (no `redirect_uri`, no `state`: a foreign code fails the PKCE exchange). The popup opens it in a tab; Dropbox shows a code; the user pastes it; `sync-link-dropbox`/`sync-signin-dropbox` `{code}` exchanges it (no `redirect_uri`) with `token_access_type=offline` and stores `{refresh, access, expiresAt}`. A worker killed between the two steps loses nothing.
   - Access token refreshed on demand, 60 s early. Refresh failure with `invalid_grant` marks the link invalid: status "paused", message "Sign in to Dropbox again", button "Sign in". This is the only recurring-prompt case (user revoked access).
   - Unlink: delete stored tokens, best-effort `auth/token/revoke`.
 - **State**: sync state gains `backend: "folder" | "dropbox"` and `account` (display name/email from `users/get_current_account`). `folderName` is kept for folder links. Default for existing state is `"folder"`.
 - **Service worker**: `doSync` builds the adapter from `backend`. New message `sync-link-dropbox` (inside `exclusive`, like `sync-link`): sign in, reset state, `firstLink: true` sync. Switching backend behaves like "Change folder": `synced` is reset and the first-link merge rules apply.
-- **UI (sync panel)**: choose "Dropbox" or "Local folder" when unlinked; linked Dropbox shows the account and "Sign in again" when paused; `compact` gate shows "Sign in" instead of "Re-allow folder".
-- **Sign-in failure or cancel** **[call]**: existing link, `synced` map and handle stay untouched until sign-in succeeds; state is reset only after. Same for "Sign in again". The panel re-renders from storage (the popup may close; the response is not relied on). No keep-alive: the pending `launchWebAuthFlow` call is enough.
+- **UI (sync panel)**: unlinked: "Sign in to Dropbox..." opens the Dropbox tab, then shows "Paste the code from Dropbox" + Connect + Cancel; linked Dropbox shows the account and "Sign in" when paused (same paste step). Opening the tab closes the toolbar popup, so the `compact` gate's paused "Sign in" opens the manager window, which hosts the paste field.
+- **Sign-in failure or cancel** **[call]**: existing link, `synced` map and handle stay untouched until sign-in succeeds; state is reset only after. Same for "Sign in again". A failed exchange consumes the pending verifier: the user starts the sign-in again. Cancel only hides the paste field.
 - **Engine messages** **[call]**: the adapter supplies its own "must be re-allowed / sign in again" text; the engine only calls `permission()` and uses the adapter's message. Small engine change, behaviour unchanged for folders.
 - **Old folder handle** **[call]**: kept after switching to Dropbox (user may switch back); deleted by unlink and by the final removal task.
 - **Plan scope** **[call]**: the plan ends before removal. Removal is a separate, gated follow-up.
@@ -66,5 +66,5 @@ Items marked **[call]** are my decisions, open to correction.
 ## Left to the builder
 - File layout and names inside `lib/`, request helper structure, exact retry timing, message and button wording, test fake design.
 
-## Decided: extension ID (user chose option 2)
-A fixed `key` changes the ID of the current unpacked install, so Chrome sees a new extension with empty storage (snippets live in `chrome.storage.local`). Options: (1) add `key`, export snippets first, import after (one-time, per machine); (2) no `key`: register each machine's own redirect URI in the Dropbox app (it accepts several) and read the ID from `chrome.runtime.id`; no data risk, but every new machine/path needs its URI added.
+## Decided: code-paste sign-in with an embedded public app key
+Supersedes the earlier `launchWebAuthFlow` design, the per-machine redirect URI decision (unpacked extension IDs differ per machine; a fixed `key` would change the current install's ID and orphan its storage) and the "no fixed key" concern. Verified against real Dropbox: authorize URL without `redirect_uri` makes Dropbox display an access code; the token endpoint accepts it with the PKCE verifier and no `redirect_uri`. The app key is a public client id (PKCE, no secret) and is embedded. Cost: one paste step. Same approach as Super Productivity.
