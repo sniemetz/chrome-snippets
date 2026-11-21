@@ -28,6 +28,21 @@ export function buildAuthUrl({ appKey, redirectUri, challenge, state }) {
   return `${AUTH_URL}?${p}`;
 }
 
+export function makeState(random = crypto) {
+  return b64url(random.getRandomValues(new Uint8Array(16)));
+}
+
+// Parses the redirect URL from launchWebAuthFlow; returns the code or throws.
+export function parseAuthCallback(url, expectedState) {
+  if (typeof url !== "string" || !url) throw new Error("Dropbox sign-in was cancelled");
+  const p = new URL(url).searchParams;
+  if (p.get("state") !== expectedState) throw new Error("Dropbox sign-in state mismatch");
+  if (p.get("error")) throw new Error(`Dropbox sign-in failed (${p.get("error")})`);
+  const code = p.get("code");
+  if (!code) throw new Error("Dropbox sign-in returned no code");
+  return code;
+}
+
 function validToken(b) {
   return !!b && typeof b.access_token === "string" && b.access_token !== ""
     && typeof b.expires_in === "number" && Number.isFinite(b.expires_in);

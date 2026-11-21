@@ -185,3 +185,17 @@ test("revoke with failing fetch does not throw", async () => {
   await area.set({ dropboxAuth: tok() });
   await auth.revoke();
 });
+
+test("parseAuthCallback returns the code when state matches", async () => {
+  const { parseAuthCallback } = await import("../extension/lib/dropbox-auth.js");
+  assert.equal(parseAuthCallback("https://x.chromiumapp.org/?code=abc&state=s1", "s1"), "abc");
+});
+
+test("parseAuthCallback rejects state mismatch, missing state, error and missing code", async () => {
+  const { parseAuthCallback } = await import("../extension/lib/dropbox-auth.js");
+  assert.throws(() => parseAuthCallback("https://x.chromiumapp.org/?code=abc&state=zz", "s1"), /state/);
+  assert.throws(() => parseAuthCallback("https://x.chromiumapp.org/?code=abc", "s1"), /state/);
+  assert.throws(() => parseAuthCallback("https://x.chromiumapp.org/?error=access_denied&state=s1", "s1"), /access_denied/);
+  assert.throws(() => parseAuthCallback("https://x.chromiumapp.org/?state=s1", "s1"), /code/);
+  assert.throws(() => parseAuthCallback(undefined, "s1"), /sign-in/);
+});

@@ -5,15 +5,19 @@ import { readFileSync } from "node:fs";
 const root = new URL("../extension/", import.meta.url);
 const manifest = () => JSON.parse(readFileSync(new URL("manifest.json", root), "utf8"));
 
-test("permissions are the six from the spec plus alarms and idle (folder sync)", () => {
+test("permissions are the six from the spec plus alarms, idle (folder sync) and identity (Dropbox)", () => {
   assert.deepEqual([...manifest().permissions].sort(), [
-    "activeTab", "alarms", "clipboardWrite", "contextMenus", "idle", "scripting", "storage", "unlimitedStorage",
+    "activeTab", "alarms", "clipboardWrite", "contextMenus", "identity", "idle", "scripting", "storage", "unlimitedStorage",
   ]);
 });
 
-test("no host permissions and no content scripts", () => {
-  assert.equal(manifest().host_permissions, undefined);
+test("only the two Dropbox host permissions and no content scripts", () => {
+  assert.deepEqual(manifest().host_permissions, ["https://api.dropboxapi.com/*", "https://content.dropboxapi.com/*"]);
   assert.equal(manifest().content_scripts, undefined);
+});
+
+test("no key field", () => {
+  assert.equal(manifest().key, undefined);
 });
 
 test("commands exist and have no default keys", () => {
@@ -44,8 +48,8 @@ test("minimum Chrome is 102 or higher (chrome.storage.session)", () => {
   assert.ok(Number(manifest().minimum_chrome_version) >= 102);
 });
 
-test("optional host permissions for http(s) only; no required host permissions", () => {
+test("optional host permissions for http(s) only; required hosts are Dropbox only", () => {
   const m = manifest();
-  assert.equal(m.host_permissions, undefined);
+  assert.ok(m.host_permissions.every((h) => h.includes("dropboxapi.com")));
   assert.deepEqual(m.optional_host_permissions, ["https://*/*", "http://*/*"]);
 });
