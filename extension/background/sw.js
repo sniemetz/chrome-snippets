@@ -19,9 +19,11 @@ const WIN = { width: 616, height: 490 };
 chrome.runtime.onInstalled.addListener(() => {
   ensureAlarm();
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: "paste", title: "Paste snippet", contexts: ["editable"] });
+    // Not offered on chrome://, extension pages etc. (injection is impossible there; "Open Snippets" still shows).
+    const web = ["http://*/*", "https://*/*", "file:///*"];
+    chrome.contextMenus.create({ id: "paste", title: "Paste snippet", contexts: ["editable"], documentUrlPatterns: web });
     // Only inside nested iframes: the top page is already covered by activeTab.
-    chrome.contextMenus.create({ id: "allow", title: "Allow Snippets on this site", contexts: ["frame"] });
+    chrome.contextMenus.create({ id: "allow", title: "Allow Snippets on this site", contexts: ["frame"], documentUrlPatterns: web });
     chrome.contextMenus.create({ id: "add", title: "Add as snippet", contexts: ["selection"] });
     chrome.contextMenus.create({ id: "open", title: "Open Snippets", contexts: ["all"] });
   });
@@ -252,7 +254,7 @@ async function injectPalette(tabId, frameId) {
   } catch (err) {
     console.warn("Snippet palette unavailable in this frame:", err?.message ?? err);
     if (frameId === 0 || !isPermissionError(err)) {
-      flashBadge("!", "Snippets unavailable on this page");
+      await openManager(); // restricted page (chrome://, Web Store): the manager can still copy snippets
       return;
     }
   }
@@ -260,7 +262,7 @@ async function injectPalette(tabId, frameId) {
     await inject(0, { copyOnly: true });
   } catch (err) {
     console.warn("Snippet palette unavailable on this page:", err?.message ?? err);
-    flashBadge("!", "Snippets unavailable on this page");
+    await openManager();
   }
 }
 

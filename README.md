@@ -70,7 +70,7 @@ No default keys. Bind them at `chrome://extensions/shortcuts`:
 - Large libraries: the list and the palette only load names, tags and a 60-char preview. Full content is read to edit, paste or search a snippet. Export reads everything.
 - Snippet size: no hard limit. Saving a snippet above 20 kB asks "Save anyway?" (large snippets slow search, sync and pasting). Import accepts any size.
 - Incognito: off until you enable it for this extension on `chrome://extensions`.
-- The palette cannot open on restricted pages (`chrome://`, Chrome Web Store). Extension context menus do not appear in the Chrome location bar or in DevTools panels; use the toolbar popup there (click a snippet, then Ctrl+V).
+- The palette cannot open on restricted pages (`chrome://`, Chrome Web Store): **Paste snippet** opens the manager window instead, where you can copy a snippet. Extension context menus do not appear in the Chrome location bar or in DevTools panels; use the toolbar popup there (click a snippet, then Ctrl+V).
 - After you change files in `extension/background/` or `extension/lib/`, reload the extension on `chrome://extensions`.
 - Icons are placeholders: `node scripts/make-icons.js`.
 
