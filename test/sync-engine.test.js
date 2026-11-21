@@ -13,7 +13,7 @@ test("first link merges: local-only pushed, folder-only pulled, summary counts c
   const r = await run(c, { firstLink: true });
   assert.equal(r.status, "ok");
   assert.deepEqual(r.counts, { pushed: 2, pulled: 1, deletedLocal: 0, deletedFiles: 0, renamed: 0, skipped: 0 });
-  assert.equal(r.summary, "1 added from the folder, 2 pushed");
+  assert.equal(r.summary, "1 added from Dropbox, 2 pushed");
   assert.deepEqual(await ids(c.store), ["f1", "l1", "l2"]);
   assert.deepEqual([...c.folder.files.keys()].sort(), ["f1", "l1", "l2"]);
   const st = await c.state.get();
@@ -32,7 +32,7 @@ test("first link, same name different content: larger id (pulled side) renamed o
   const c = await setup({ local: [sn("a1", { name: "Sig", content: "x" })], files: [sn("b2", { name: "Sig", content: "y" })] });
   const r = await run(c, { firstLink: true });
   assert.equal(r.counts.renamed, 1);
-  assert.equal(r.summary, "1 added from the folder, 1 pushed, 1 renamed");
+  assert.equal(r.summary, "1 added from Dropbox, 1 pushed, 1 renamed");
   const all = await c.store.list();
   assert.equal(all.find((s) => s.id === "b2").name, "Sig (2)");
   assert.equal(all.find((s) => s.id === "a1").name, "Sig");

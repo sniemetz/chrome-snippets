@@ -5,26 +5,19 @@ import { memArea } from "./helpers/mem-area.js";
 
 test("defaults when empty", async () => {
   assert.deepEqual(await createSyncState(memArea()).get(), defaultState());
-  assert.deepEqual(defaultState(), { linked: false, folderName: "", intervalMin: 15, status: "ok", lastSync: null,
-    message: "", summary: null, decision: null, synced: {}, backend: "folder", account: "", syncing: false });
+  assert.deepEqual(defaultState(), { linked: false, intervalMin: 15, status: "ok", lastSync: null,
+    message: "", summary: null, decision: null, synced: {}, backend: "dropbox", account: "", syncing: false });
 });
-test("defaultState has backend folder and empty account", () => {
-  assert.equal(defaultState().backend, "folder");
+test("defaultState has backend dropbox and empty account", () => {
+  assert.equal(defaultState().backend, "dropbox");
   assert.equal(defaultState().account, "");
-});
-test("state saved without backend reads back as folder", async () => {
-  const area = memArea();
-  await area.set({ sync: { linked: true, folderName: "f", intervalMin: 30 } });
-  const s = await createSyncState(area).get();
-  assert.equal(s.backend, "folder");
-  assert.equal(s.account, "");
 });
 test("set merges; get returns defaults plus patch", async () => {
   const st = createSyncState(memArea());
-  await st.set({ linked: true, folderName: "f" });
+  await st.set({ linked: true, account: "f" });
   const r = await st.set({ status: "paused" });
   assert.equal(r.status, "paused");
-  assert.deepEqual(await st.get(), { ...defaultState(), linked: true, folderName: "f", status: "paused" });
+  assert.deepEqual(await st.get(), { ...defaultState(), linked: true, account: "f", status: "paused" });
 });
 test("clear resets to defaults", async () => {
   const st = createSyncState(memArea());
@@ -42,7 +35,7 @@ test("unknown stored intervalMin falls back to 15", async () => {
 });
 
 import { needsAttention } from "../extension/lib/sync-state.js";
-test("needsAttention: only a linked folder that is paused or needs a decision", () => {
+test("needsAttention: only a linked account that is paused or needs a decision", () => {
   const st = (o) => ({ ...defaultState(), ...o });
   assert.equal(needsAttention(st({ linked: true, status: "paused" })), true);
   assert.equal(needsAttention(st({ linked: true, status: "needs-decision" })), true);

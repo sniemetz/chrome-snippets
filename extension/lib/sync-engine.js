@@ -1,12 +1,12 @@
 import { planSync } from "./sync-plan.js";
 import { decideClash } from "./name-clash.js";
-import { FolderReadError } from "./folder.js";
+import { FolderReadError } from "./snippet-file.js";
 
 const lc = (s) => s.toLowerCase();
 const SAVE_EVERY = 25; // persist `synced` this often, so a stopped run does not look like mass conflicts
 const emptyCounts = () => ({ pushed: 0, pulled: 0, deletedLocal: 0, deletedFiles: 0, renamed: 0, skipped: 0 });
 
-// One sync run. store/folder/state are interfaces (see store.js, folder.js, sync-state.js).
+// One sync run. store/folder/state are interfaces (see store.js, dropbox.js, sync-state.js); "folder" is the remote side.
 export async function runSync({ store, folder, state, now = Date.now, resolve = null, firstLink = false }) {
   const counts = emptyCounts();
   const st = await state.get();
@@ -136,7 +136,7 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
     }
 
     if (firstLink && status === "ok") {
-      summary = `${counts.pulled} added from the folder, ${counts.pushed} pushed` + (counts.renamed ? `, ${counts.renamed} renamed` : "");
+      summary = `${counts.pulled} added from Dropbox, ${counts.pushed} pushed` + (counts.renamed ? `, ${counts.renamed} renamed` : "");
     }
     if (status === "ok" && counts.skipped) message = `${counts.skipped} files could not be synced, will retry`;
   } catch (err) {

@@ -4,13 +4,11 @@ import { handleMessage } from "../lib/messages.js";
 import { originPattern, isPermissionError } from "../lib/paste-target.js";
 import { centeredPosition } from "../lib/position.js";
 import { createSyncState, INTERVALS } from "../lib/sync-state.js";
-import { createFolder } from "../lib/folder.js";
 import { createDropbox } from "../lib/dropbox.js";
 import { createDropboxAuth, makePkce, buildAuthUrl } from "../lib/dropbox-auth.js";
 import { createPending } from "../lib/dropbox-pending.js";
 import { DROPBOX_APP_KEY } from "../lib/dropbox-config.js";
 import { runSync } from "../lib/sync-engine.js";
-import { getHandle, deleteHandle, promotePendingHandle } from "../popup/handle-store.js";
 
 const store = createStore(chrome.storage.local);
 const syncState = createSyncState(chrome.storage.local);
@@ -40,7 +38,7 @@ function flashBadge(text, title) {
   }, 3000);
 }
 
-// ---------- folder sync (see docs/superpowers/specs/2026-11-18-folder-sync-design.md) ----------
+// ---------- Dropbox sync (see docs/superpowers/specs/2026-11-21-cloud-sync-design.md) ----------
 const SYNC_ALARM = "sync";
 const DEBOUNCE_MS = 2000;
 let chain = Promise.resolve();
@@ -92,16 +90,7 @@ async function doSync(opts) {
     if (!st.linked) return;
     await syncState.set({ syncing: true }); // panel shows a spinner; cleared in finally
     try {
-      if (st.backend === "dropbox") {
-        await runSync({ store, folder: dropboxAdapter(), state: syncState, ...opts });
-      } else {
-        const dir = await getHandle();
-        if (!dir) {
-          await syncState.set({ status: "error", message: "Folder handle is missing. Choose the folder again." });
-        } else {
-          await runSync({ store, folder: createFolder(dir), state: syncState, ...opts });
-        }
-      }
+      await runSync({ store, folder: dropboxAdapter(), state: syncState, ...opts });
     } catch (err) {
       console.warn("Sync failed:", err);
       await syncState.set({ status: "error", message: String(err?.message ?? err) });
@@ -114,7 +103,7 @@ async function doSync(opts) {
   }
 }
 
-// Everything that touches sync state or the folder runs here, one task at a time. A failing task never
+// Everything that touches sync state runs here, one task at a time. A failing task never
 // stops later ones.
 function exclusive(task) {
   const run = chain.then(task);
@@ -158,19 +147,6 @@ async function handleSyncMessage(msg) {
       await ensureAlarm({ force: true });
       return { ok: true };
     }
-    case "sync-link":
-      return exclusive(async () => {
-        const dir = await promotePendingHandle(); // switch folder and state together, inside the queue
-        if (!dir) return { ok: false };
-        await syncState.clear();
-        await syncState.set({ linked: true, folderName: dir.name });
-        // Folder link made: drop any Dropbox tokens (revoke never throws). A failed link returned above.
-        const auth = dropboxAuth();
-        if (await auth.hasLink() || await auth.isInvalid()) { await auth.revoke(); await auth.clear(); }
-        await ensureAlarm({ force: true });
-        await doSync({ firstLink: true });
-        return { ok: true };
-      });
     case "sync-dropbox-begin":
       try {
         return { ok: true, url: await dropboxBegin(msg.mode) };
@@ -196,7 +172,7 @@ async function handleSyncMessage(msg) {
         try {
           const account = await dropboxAdapter().accountName();
           await syncState.clear();
-          await syncState.set({ linked: true, backend: "dropbox", account, folderName: "" });
+          await syncState.set({ linked: true, backend: "dropbox", account });
           await ensureAlarm({ force: true });
           await doSync({ firstLink: true });
           return { ok: true };
@@ -234,15 +210,11 @@ async function handleSyncMessage(msg) {
       });
     case "sync-unlink":
       return exclusive(async () => {
-        const { backend } = await syncState.get();
         await dropboxPending().clear();
-        if (backend === "dropbox") {
-          const auth = dropboxAuth();
-          await auth.revoke();
-          await auth.clear();
-        }
+        const auth = dropboxAuth();
+        await auth.revoke();
+        await auth.clear();
         await syncState.clear();
-        await deleteHandle();
         await chrome.alarms.clear(SYNC_ALARM);
         await syncBadge();
         return { ok: true };

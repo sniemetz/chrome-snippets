@@ -1,5 +1,5 @@
-// Dropbox app-folder adapter with the same shape as createFolder (lib/folder.js).
-import { parseSnippetFile, FolderReadError } from "./folder.js";
+// Dropbox app-folder adapter with the list/read/write/remove/permission interface used by sync-engine.js.
+import { parseSnippetFile, FolderReadError } from "./snippet-file.js";
 import { DropboxAuthError } from "./dropbox-auth.js";
 
 const API = "https://api.dropboxapi.com/2";

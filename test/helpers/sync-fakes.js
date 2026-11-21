@@ -1,6 +1,6 @@
 import { createStore } from "../../extension/lib/store.js";
 import { createSyncState } from "../../extension/lib/sync-state.js";
-import { FolderReadError } from "../../extension/lib/folder.js";
+import { FolderReadError } from "../../extension/lib/snippet-file.js";
 import { memArea } from "./mem-area.js";
 
 export const sn = (id, o = {}) => ({ id, name: id, content: `content-${id}`, tags: [], created: 1, modified: 1, ...o });

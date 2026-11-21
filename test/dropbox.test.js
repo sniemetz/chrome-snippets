@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createDropbox } from "../extension/lib/dropbox.js";
 import { createDropboxAuth, DropboxAuthError } from "../extension/lib/dropbox-auth.js";
-import { FolderReadError } from "../extension/lib/folder.js";
+import { FolderReadError } from "../extension/lib/snippet-file.js";
 import { fakeDropbox } from "./helpers/fake-dropbox.js";
 import { memArea } from "./helpers/mem-area.js";
 

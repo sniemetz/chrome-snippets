@@ -9,8 +9,6 @@ import { copyWithFeedback, copyTextWithFeedback } from "./copy.js";
 import { mountTagsPanel } from "./tags-panel.js";
 import { mountSyncPanel } from "./sync-panel.js";
 import { createSyncState, needsAttention } from "../lib/sync-state.js";
-// The panel's "putHandle" stores the picked folder as pending; the service worker activates it on sync-link.
-import { getHandle, putPendingHandle as putHandle, deleteHandle } from "./handle-store.js";
 
 const $ = (id) => document.getElementById(id);
 const view = viewFromSearch(location.search);
@@ -359,13 +357,13 @@ $("openMgrBtn").onclick = async () => {
 };
 
 // ---------- toolbar popup: sync gate ----------
-// When the badge "!" shows (folder access lost or a decision pending), the popup first shows what the
+// When the badge "!" shows (Dropbox sign-in lost or a decision pending), the popup first shows what the
 // user must do; the normal list appears as soon as sync is OK again.
 async function mountSyncGate() {
   const gateEl = $("syncGate");
   const leave = () => { document.body.classList.remove("gating"); gateEl.hidden = true; };
   const gate = mountSyncPanel(gateEl, {
-    getHandle, putHandle, compact: true, onResolved: leave,
+    compact: true, onResolved: leave,
     send: (msg) => chrome.runtime.sendMessage(msg),
     onStatus: (t, isErr) => showStatus(t, isErr),
   });
@@ -383,7 +381,6 @@ if (view === "window") {
   mountDataMenu($("dataMount"), store, { onStatus: (t, isErr) => showStatus(t, isErr) });
   tagsPanel = mountTagsPanel($("tagsPanel"), store, { onChanged: reload });
   syncPanel = mountSyncPanel($("syncPanel"), {
-    getHandle, putHandle, deleteHandle,
     send: (msg) => chrome.runtime.sendMessage(msg),
     onStatus: (t, isErr) => showStatus(t, isErr),
   });

@@ -3,10 +3,10 @@ import { INTERVALS, createSyncState, needsAttention } from "../lib/sync-state.js
 import { syncBusy, syncButtonView, unlinkDisabled, pausedView, pausedStatusText, linkedView, unlinkText, signinInGate, codeCheck, codeApplies } from "../lib/sync-view.js";
 
 // Sync panel (manager window). Reads the persisted sync state and re-renders when it changes.
-// getHandle/putHandle/deleteHandle: directory handle store; send(msg): runtime message to the service worker.
-// compact: toolbar-popup gate. Shows only what the user must do (re-allow / decision), no Cancel,
+// send(msg): runtime message to the service worker.
+// compact: toolbar-popup gate. Shows only what the user must do (sign in / decision), no Cancel,
 // and calls onResolved() as soon as sync no longer needs attention.
-export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, state = createSyncState(), compact = false, onResolved }) {
+export function mountSyncPanel(root, { send, onStatus, state = createSyncState(), compact = false, onResolved }) {
   const el = (tag, props = {}, ...kids) => {
     const e = Object.assign(document.createElement(tag), props);
     e.append(...kids);
@@ -22,30 +22,6 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
   let focusCode = false;
   let authWinId = null; // the small Dropbox window, closed after Connect/Cancel
   let syncClicked = false; // Sync now clicked, answer (end of run) not yet received
-
-  async function pick() {
-    let dir;
-    try {
-      dir = await showDirectoryPicker({ mode: "readwrite", id: "snippet-sync" });
-    } catch (err) {
-      if (err?.name !== "AbortError") onStatus(`Could not open the folder: ${err?.message ?? err}`, true);
-      return;
-    }
-    await putHandle(dir);
-    decisionDismissed = false;
-    await send({ type: "sync-link" });
-  }
-
-  async function reallow() {
-    try {
-      const dir = await getHandle();
-      const granted = dir && (await dir.requestPermission({ mode: "readwrite" })) === "granted";
-      if (!granted) { onStatus("Permission not granted", true); return; }
-      await send({ type: "sync-now" });
-    } catch (err) {
-      onStatus(`Could not re-allow the folder: ${err?.message ?? err}`, true);
-    }
-  }
 
   // Small popup window next to the manager (a tab would raise the browser window over the manager).
   async function openAuthWindow(url) {
@@ -157,8 +133,8 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
   function banners(st, withCancel) {
     if (st.status === "paused") {
       const pv = pausedView(st);
-      const inCode = pv.action === "signin" && codeEntry === "signin";
-      root.append(row(el("span", { className: "err", textContent: pv.text }), ...(inCode ? [] : [btn(pv.actionLabel, pv.action === "signin" ? () => beginDropbox("signin") : reallow, { className: "primary", disabled: pv.action === "signin" && signingIn })])));
+      const inCode = codeEntry === "signin";
+      root.append(row(el("span", { className: "err", textContent: pv.text }), ...(inCode ? [] : [btn(pv.actionLabel, () => beginDropbox("signin"), { className: "primary", disabled: signingIn })])));
       if (inCode) root.append(codeRow());
     }
     if (st.status === "needs-decision" && withCancel && decisionDismissed) {
@@ -169,7 +145,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
       root.append(
         el("p", { className: "err", textContent: `${n} snippet${n === 1 ? "" : "s"} conflict (deleted on one side or edited on both). Choose which side wins for these. Everything else is merged.` }),
         row(
-          btn("Folder wins", () => send({ type: "sync-decide", choice: "folder" })),
+          btn("Dropbox wins", () => send({ type: "sync-decide", choice: "folder" })),
           btn("This device wins", () => send({ type: "sync-decide", choice: "local" })),
           ...(withCancel ? [btn("Cancel", () => { send({ type: "sync-decide", choice: "cancel" }); decisionDismissed = true; render(); })] : []),
         ),
@@ -184,7 +160,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
       codeEntry = null; codeValue = "";
       try { await send({ type: "sync-dropbox-cancel" }); } catch { /* expires by itself */ }
     }
-    if (!codeEntry && !signingIn && (!st.linked || (st.backend === "dropbox" && st.status === "paused"))) {
+    if (!codeEntry && !signingIn && (!st.linked || st.status === "paused")) {
       try {
         const res = await send({ type: "sync-dropbox-pending" });
         if (res?.mode && codeApplies(st, res.mode)) { codeEntry = res.mode; codeValue = ""; focusCode = true; }
@@ -200,16 +176,16 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     if (compact) { banners(st, false); return; }
     if (!st.linked) {
       root.append(
-        el("p", { className: "placeholder", textContent: "Sync your snippets between devices with Dropbox, or with a folder that your own tool keeps in sync. For a folder, choose \"Allow on every visit\" when Chrome asks." }),
+        el("p", { className: "placeholder", textContent: "Sync your snippets between devices with Dropbox." }),
         codeEntry === "link"
           ? el("div", {}, el("p", { className: "muted", textContent: "Allow access on the Dropbox page, copy the code it shows, and paste it here." }), codeRow())
-          : row(btn("Sign in to Dropbox...", () => beginDropbox("link"), { className: "primary", disabled: signingIn }), btn("Choose local folder...", pick)),
+          : row(btn("Sign in to Dropbox...", () => beginDropbox("link"), { className: "primary", disabled: signingIn })),
       );
       return;
     }
     banners(st, true);
     const lv = linkedView(st);
-    root.append(row(el("span", { textContent: lv.label }), ...(lv.showChangeFolder ? [btn("Change folder...", pick)] : [])));
+    root.append(row(el("span", { textContent: lv.label })));
     const busy = syncBusy(st, syncClicked);
     const sv = syncButtonView(busy);
     const syncBtn = btn(sv.label, syncNow, { disabled: sv.disabled, ariaBusy: String(busy) });
