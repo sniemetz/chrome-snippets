@@ -20,12 +20,17 @@ export async function makePkce(random = crypto) {
   return { verifier, challenge: b64url(new Uint8Array(digest)) };
 }
 
-export function buildAuthUrl({ appKey, redirectUri, challenge }) {
+export function buildAuthUrl({ appKey, redirectUri, challenge, state }) {
   const p = new URLSearchParams({
     client_id: appKey, response_type: "code", code_challenge: challenge,
-    code_challenge_method: "S256", token_access_type: "offline", redirect_uri: redirectUri,
+    code_challenge_method: "S256", token_access_type: "offline", redirect_uri: redirectUri, state,
   });
   return `${AUTH_URL}?${p}`;
+}
+
+function validToken(b) {
+  return !!b && typeof b.access_token === "string" && b.access_token !== ""
+    && typeof b.expires_in === "number" && Number.isFinite(b.expires_in);
 }
 
 export function createDropboxAuth({ fetch, area, appKey, now = Date.now }) {
@@ -48,8 +53,9 @@ export function createDropboxAuth({ fetch, area, appKey, now = Date.now }) {
       grant_type: "authorization_code", code, code_verifier: verifier,
       client_id: appKey, redirect_uri: redirectUri,
     });
-    if (!res.ok || !body || !body.access_token || !body.refresh_token) {
-      throw new Error(`Dropbox sign-in failed (${res.status}${body && body.error ? " " + body.error : ""})`);
+    if (!res.ok) throw new Error(`Dropbox sign-in failed (${res.status}${body && body.error ? " " + body.error : ""})`);
+    if (!validToken(body) || typeof body.refresh_token !== "string" || !body.refresh_token) {
+      throw new Error("Dropbox token sign-in bad response");
     }
     await save({ refresh: body.refresh_token, access: body.access_token,
       expiresAt: now() + body.expires_in * 1000, invalid: false });
@@ -62,11 +68,12 @@ export function createDropboxAuth({ fetch, area, appKey, now = Date.now }) {
     const { res, body } = await post({ grant_type: "refresh_token", refresh_token: st.refresh, client_id: appKey });
     if (!res.ok) {
       if (body && body.error === "invalid_grant") {
-        await save({ ...st, invalid: true });
+        await save({ invalid: true });
         throw new DropboxAuthError("Dropbox authorization is no longer valid");
       }
       throw new Error(`Dropbox token refresh failed (${res.status})`);
     }
+    if (!validToken(body)) throw new Error("Dropbox token refresh bad response");
     await save({ ...st, access: body.access_token, expiresAt: now() + body.expires_in * 1000, invalid: false });
     return body.access_token;
   }
@@ -82,9 +89,11 @@ export function createDropboxAuth({ fetch, area, appKey, now = Date.now }) {
   async function clear() { await area.remove(KEY); }
   async function revoke() {
     try {
-      const st = await load();
-      if (!st || !st.access) return;
-      await fetch(REVOKE_URL, { method: "POST", headers: { Authorization: `Bearer ${st.access}` } });
+      let token = null;
+      try { token = await accessToken({ force: true }); } catch { /* fall back to stored token */ }
+      if (!token) { const st = await load(); token = st && st.access; }
+      if (!token) return;
+      await fetch(REVOKE_URL, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
     } catch { /* best effort */ }
   }
 

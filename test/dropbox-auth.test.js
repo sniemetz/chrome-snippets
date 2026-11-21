@@ -43,7 +43,7 @@ test("makePkce default: verifier 43-128 base64url, challenge no padding", async 
 });
 
 test("buildAuthUrl contains every param", () => {
-  const u = new URL(buildAuthUrl({ appKey: "KEY", redirectUri: "https://x.chromiumapp.org/cb", challenge: "CH" }));
+  const u = new URL(buildAuthUrl({ appKey: "KEY", redirectUri: "https://x.chromiumapp.org/cb", challenge: "CH", state: "ST" }));
   assert.equal(u.origin + u.pathname, "https://www.dropbox.com/oauth2/authorize");
   const p = u.searchParams;
   assert.equal(p.get("client_id"), "KEY");
@@ -52,6 +52,7 @@ test("buildAuthUrl contains every param", () => {
   assert.equal(p.get("code_challenge_method"), "S256");
   assert.equal(p.get("token_access_type"), "offline");
   assert.equal(p.get("redirect_uri"), "https://x.chromiumapp.org/cb");
+  assert.equal(p.get("state"), "ST");
 });
 
 test("signIn posts code exchange and stores tokens", async () => {
@@ -100,9 +101,30 @@ test("invalid_grant marks invalid and throws DropboxAuthError", async () => {
   const { area, auth } = setup(f);
   await area.set({ dropboxAuth: tok({ expiresAt: 0 }) });
   await assert.rejects(auth.accessToken(), DropboxAuthError);
-  assert.equal(area.data.dropboxAuth.invalid, true);
+  assert.deepEqual(area.data.dropboxAuth, { invalid: true });
   assert.equal(await auth.isInvalid(), true);
   assert.equal(await auth.hasLink(), false);
+  await assert.rejects(auth.accessToken(), DropboxAuthError);
+});
+for (const [name, body] of [["missing access_token", { expires_in: 1 }], ["empty access_token", { access_token: "", expires_in: 1 }],
+  ["non-numeric expires_in", { access_token: "X", expires_in: "1" }], ["missing expires_in", { access_token: "X" }]]) {
+  test(`refresh with ${name} throws and changes nothing`, async () => {
+    const { area, auth } = setup(fakeFetch(json(200, body)));
+    await area.set({ dropboxAuth: tok({ expiresAt: 0, invalid: false }) });
+    const before = structuredClone(area.data.dropboxAuth);
+    await assert.rejects(auth.accessToken(), (e) => e instanceof Error && !(e instanceof DropboxAuthError) && /bad response/.test(e.message));
+    assert.deepEqual(area.data.dropboxAuth, before);
+  });
+  test(`signIn with ${name} throws and stores nothing`, async () => {
+    const { area, auth } = setup(fakeFetch(json(200, { refresh_token: "R", ...body })));
+    await assert.rejects(auth.signIn("C", "V", "r"), (e) => /bad response/.test(e.message));
+    assert.equal(area.data.dropboxAuth, undefined);
+  });
+}
+test("signIn without refresh_token throws and stores nothing", async () => {
+  const { area, auth } = setup(fakeFetch(json(200, { access_token: "A", expires_in: 1 })));
+  await assert.rejects(auth.signIn("C", "V", "r"), (e) => /bad response/.test(e.message));
+  assert.equal(area.data.dropboxAuth, undefined);
 });
 test("network error on refresh throws plain Error, invalid stays false", async () => {
   const f = fakeFetch(new TypeError("offline"));
@@ -129,18 +151,37 @@ test("clear removes dropboxAuth", async () => {
   assert.equal(area.data.dropboxAuth, undefined);
 });
 test("revoke posts bearer to revoke endpoint", async () => {
-  const f = fakeFetch(json(200, {}));
+  const f = fakeFetch(json(200, { access_token: "AF", expires_in: 14400 }), json(200, {}));
   const { area, auth } = setup(f);
   await area.set({ dropboxAuth: tok() });
   await auth.revoke();
-  assert.equal(f.calls[0].url, "https://api.dropboxapi.com/2/auth/token/revoke");
-  assert.equal(f.calls[0].init.method, "POST");
-  assert.equal(f.calls[0].init.headers.Authorization, "Bearer A");
+  assert.equal(f.calls[1].url, "https://api.dropboxapi.com/2/auth/token/revoke");
+  assert.equal(f.calls[1].init.method, "POST");
+  assert.equal(f.calls[1].init.headers.Authorization, "Bearer AF");
 });
-test("revoke swallows errors", async () => {
-  const { area, auth } = setup(fakeFetch(new Error("boom")));
+test("revoke after expiry uses a refreshed token", async () => {
+  const f = fakeFetch(json(200, { access_token: "A9", expires_in: 14400 }), json(200, {}));
+  const { area, auth } = setup(f);
+  await area.set({ dropboxAuth: tok({ expiresAt: 0 }) });
+  await auth.revoke();
+  assert.equal(f.calls[0].body.grant_type, "refresh_token");
+  assert.equal(f.calls[1].init.headers.Authorization, "Bearer A9");
+});
+test("revoke falls back to stored token when refresh fails", async () => {
+  const f = fakeFetch(new Error("offline"), json(200, {}));
+  const { area, auth } = setup(f);
   await area.set({ dropboxAuth: tok() });
   await auth.revoke();
-  const { auth: a2 } = setup(fakeFetch());
-  await a2.revoke(); // no link
+  assert.equal(f.calls[1].init.headers.Authorization, "Bearer A");
+});
+test("revoke with no link makes no fetch", async () => {
+  const f = fakeFetch();
+  const { auth } = setup(f);
+  await auth.revoke();
+  assert.equal(f.calls.length, 0);
+});
+test("revoke with failing fetch does not throw", async () => {
+  const { area, auth } = setup(fakeFetch(new Error("boom"), new Error("boom")));
+  await area.set({ dropboxAuth: tok() });
+  await auth.revoke();
 });
