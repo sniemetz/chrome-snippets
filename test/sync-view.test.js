@@ -23,3 +23,8 @@ test("unlink wording per backend", () => {
   assert.match(unlinkText({ backend: "dropbox" }), /^Unlink Dropbox\?/);
   assert.match(unlinkText({ backend: "folder" }), /^Unlink this folder\?/);
 });
+test("paused folder ignores st.message (engine always sets it)", () => {
+  const st = { backend: "folder", message: "Folder access must be re-allowed" };
+  assert.equal(pausedStatusText(st), "Sync paused: folder access must be re-allowed");
+  assert.equal(pausedView(st).text, "Folder access must be re-allowed");
+});
