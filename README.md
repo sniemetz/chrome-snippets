@@ -2,6 +2,7 @@
 
 Chrome extension (Manifest V3). Save, search, and paste text snippets.
 
+- Privacy policy: [`docs/privacy-policy.md`](docs/privacy-policy.md) (no tracking; data stays on your device unless you turn on sync)
 - Spec: `docs/spec.md`
 - Plan: `docs/superpowers/plans/2026-11-16-snippet-saver-v1.md`
 - Mockups: `docs/mockup/`
