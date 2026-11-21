@@ -279,3 +279,52 @@ test("engine syncs against the Dropbox adapter", async () => {
   const r2 = await runSync({ store: c.store, folder: dropbox, state: c.state, now: c.now });
   assert.deepEqual(r2.counts, { pushed: 0, pulled: 0, deletedLocal: 0, deletedFiles: 0, renamed: 0, skipped: 0 });
 });
+
+const authErr = () => Object.assign(new Error("invalid_grant"), { name: "DropboxAuthError" });
+
+test("paused message comes from the adapter when permission is not granted", async () => {
+  const c = await setup({ local: [sn("a")] });
+  c.folder.pausedMessage = "Sign in to Dropbox again";
+  c.folder.perm = "denied";
+  const r = await run(c);
+  assert.equal(r.status, "paused");
+  assert.equal((await c.state.get()).message, "Sign in to Dropbox again");
+});
+
+test("folder without pausedMessage keeps the default paused message", async () => {
+  const c = await setup({ local: [sn("a")] });
+  c.folder.perm = "denied";
+  await run(c);
+  assert.equal((await c.state.get()).message, "Folder access must be re-allowed");
+});
+
+test("DropboxAuthError from list(): paused with the adapter message, not error", async () => {
+  const c = await setup({ local: [sn("a")] });
+  c.folder.pausedMessage = "Sign in to Dropbox again";
+  c.folder.list = async () => { throw authErr(); };
+  const r = await run(c);
+  assert.equal(r.status, "paused");
+  const st = await c.state.get();
+  assert.equal(st.status, "paused");
+  assert.equal(st.message, "Sign in to Dropbox again");
+});
+
+test("DropboxAuthError from a per-file read stops the run as paused", async () => {
+  const c = await setup({ files: [sn("f1"), sn("f2"), sn("f3")] });
+  c.folder.pausedMessage = "Sign in to Dropbox again";
+  c.folder.read = async (id) => { c.folder.calls.read.push(id); throw authErr(); };
+  const r = await run(c, { firstLink: true });
+  assert.equal(r.status, "paused");
+  assert.equal(c.folder.calls.read.length, 1);
+  assert.equal((await c.state.get()).message, "Sign in to Dropbox again");
+});
+
+test("an ordinary error from one file is skipped, not paused", async () => {
+  const c = await setup({ files: [sn("f1"), sn("f2")] });
+  const read = c.folder.read;
+  c.folder.read = async (id) => { if (id === "f1") throw new Error("boom"); return read(id); };
+  const r = await run(c, { firstLink: true });
+  assert.equal(r.status, "ok");
+  assert.equal(r.counts.skipped, 1);
+  assert.equal(r.counts.pulled, 1);
+});

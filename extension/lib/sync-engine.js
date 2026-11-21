@@ -11,9 +11,11 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
   const counts = emptyCounts();
   const st = await state.get();
   const synced = { ...(firstLink ? {} : st.synced) };
+  const pausedMsg = folder.pausedMessage ?? "Folder access must be re-allowed";
+  const isAuthLost = (err) => err?.name === "DropboxAuthError"; // matched by name: the engine stays adapter-agnostic
 
   if ((await folder.permission()) !== "granted") {
-    await state.set({ status: "paused", message: "Folder access must be re-allowed" });
+    await state.set({ status: "paused", message: pausedMsg });
     return { status: "paused", counts, summary: null };
   }
 
@@ -110,7 +112,7 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
     }
 
     for (const a of plan.actions) {
-      if ((await folder.permission()) !== "granted") { status = "paused"; message = "Folder access must be re-allowed"; break; }
+      if ((await folder.permission()) !== "granted") { status = "paused"; message = pausedMsg; break; }
       try {
         let type = a.type;
         if (plan.guard.tripped) {
@@ -126,7 +128,7 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
         done++;
       } catch (err) {
         // One bad file never stops the run, but a lost permission does (it also explains a failed write).
-        if ((await folder.permission()) !== "granted") { status = "paused"; message = "Folder access must be re-allowed"; break; }
+        if (isAuthLost(err) || (await folder.permission()) !== "granted") { status = "paused"; message = pausedMsg; break; }
         if (!(err instanceof FolderReadError)) console.warn("Sync: skipped", a.id, err);
         counts.skipped++;
       }
@@ -138,8 +140,8 @@ export async function runSync({ store, folder, state, now = Date.now, resolve = 
     }
     if (status === "ok" && counts.skipped) message = `${counts.skipped} files could not be synced, will retry`;
   } catch (err) {
-    status = "error";
-    message = String(err?.message ?? err);
+    if (isAuthLost(err)) { status = "paused"; message = pausedMsg; }
+    else { status = "error"; message = String(err?.message ?? err); }
   }
 
   await state.set({
