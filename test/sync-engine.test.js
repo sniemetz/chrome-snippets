@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runSync } from "../extension/lib/sync-engine.js";
 import { setup, sn } from "./helpers/sync-fakes.js";
+import { createDropbox } from "../extension/lib/dropbox.js";
+import { fakeDropbox } from "./helpers/fake-dropbox.js";
 
 const run = (c, o = {}) => runSync({ store: c.store, folder: c.folder, state: c.state, now: c.now, ...o });
 const ids = async (store) => (await store.listMeta()).map((m) => m.id).sort();
@@ -260,4 +262,20 @@ test("permission lost during the last write: the run pauses instead of reporting
   const r = await run(c, { firstLink: true });
   assert.equal(r.status, "paused");
   assert.equal((await c.state.get()).status, "paused");
+});
+
+test("engine syncs against the Dropbox adapter", async () => {
+  const u = (n) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`;
+  const c = await setup({ local: [sn(u(1)), sn(u(2))] });
+  const dbx = fakeDropbox();
+  const auth = { hasLink: async () => true, accessToken: async () => dbx.currentToken() };
+  const dropbox = createDropbox({ fetch: dbx.fetch, auth, sleep: async () => {} });
+  for (const n of [3, 4]) await dropbox.write(sn(u(n)));
+  const r = await runSync({ store: c.store, folder: dropbox, state: c.state, now: c.now, firstLink: true });
+  assert.equal(r.status, "ok");
+  assert.deepEqual(r.counts, { pushed: 2, pulled: 2, deletedLocal: 0, deletedFiles: 0, renamed: 0, skipped: 0 });
+  assert.deepEqual(await ids(c.store), [u(1), u(2), u(3), u(4)]);
+  assert.deepEqual([...dbx.files.keys()].sort(), [1, 2, 3, 4].map((n) => `/${u(n)}.json`));
+  const r2 = await runSync({ store: c.store, folder: dropbox, state: c.state, now: c.now });
+  assert.deepEqual(r2.counts, { pushed: 0, pulled: 0, deletedLocal: 0, deletedFiles: 0, renamed: 0, skipped: 0 });
 });
