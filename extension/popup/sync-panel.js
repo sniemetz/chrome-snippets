@@ -1,4 +1,5 @@
 import { INTERVALS, createSyncState, needsAttention } from "../lib/sync-state.js";
+import { pausedView, pausedStatusText, linkedView, unlinkText } from "../lib/sync-view.js";
 
 // Sync panel (manager window). Reads the persisted sync state and re-renders when it changes.
 // getHandle/putHandle/deleteHandle: directory handle store; send(msg): runtime message to the service worker.
@@ -39,10 +40,21 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     }
   }
 
+  // Dropbox sign-in (link when unlinked, sign in again when paused). Failures show the returned error.
+  async function dropbox(type) {
+    try {
+      const res = await send({ type });
+      if (res && res.ok === false) { onStatus(res.error || "Dropbox sign-in failed", true); return; }
+      decisionDismissed = false;
+    } catch (err) {
+      onStatus(`Dropbox sign-in failed: ${err?.message ?? err}`, true);
+    }
+  }
+
   function statusText(st) {
     if (st.status === "error") return st.message || "Sync failed";
     if (st.status === "needs-decision") return "Sync stopped: waiting for your decision";
-    if (st.status === "paused") return "Sync paused: folder access must be re-allowed";
+    if (st.status === "paused") return pausedStatusText(st);
     if (!st.lastSync) return "Not synced yet";
     const time = new Date(st.lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     return `Synced ${time} - ${Object.keys(st.synced).length} snippets`;
@@ -50,7 +62,8 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
 
   function banners(st, withCancel) {
     if (st.status === "paused") {
-      root.append(row(el("span", { className: "err", textContent: "Folder access must be re-allowed" }), btn("Re-allow folder", reallow, { className: "primary" })));
+      const pv = pausedView(st);
+      root.append(row(el("span", { className: "err", textContent: pv.text }), btn(pv.actionLabel, pv.action === "signin" ? () => dropbox("sync-signin-dropbox") : reallow, { className: "primary" })));
     }
     if (st.status === "needs-decision" && withCancel && decisionDismissed) {
       root.append(row(el("span", { className: "err", textContent: "Sync is stopped until you decide." }), btn("Decide...", () => { decisionDismissed = false; render(); })));
@@ -76,12 +89,15 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     if (!st.linked) {
       root.append(
         el("p", { className: "placeholder", textContent: "Pick a folder your sync tool keeps in sync across devices. When Chrome asks, choose \"Allow on every visit\"." }),
-        row(btn("Choose folder...", pick, { className: "primary" })),
+        row(btn("Sign in to Dropbox...", () => dropbox("sync-link-dropbox"), { className: "primary" }), btn("Choose local folder...", pick)),
+        el("p", { className: "muted", textContent: `Extension ID: ${chrome.runtime.id}` }),
+        el("p", { className: "muted", textContent: `Add ${chrome.identity.getRedirectURL()} as a redirect URI in the Dropbox app` }),
       );
       return;
     }
     banners(st, true);
-    root.append(row(el("span", { textContent: `Folder: ${st.folderName}` }), btn("Change folder...", pick)));
+    const lv = linkedView(st);
+    root.append(row(el("span", { textContent: lv.label }), ...(lv.showChangeFolder ? [btn("Change folder...", pick)] : [])));
     root.append(row(el("span", { textContent: statusText(st) }), btn("Sync now", () => send({ type: "sync-now" }))));
     if (st.message && st.status !== "error" && st.status !== "paused") root.append(el("p", { className: "muted", textContent: st.message }));
     if (st.summary) root.append(el("p", { className: "muted", textContent: `First sync: ${st.summary}` }));
@@ -91,7 +107,7 @@ export function mountSyncPanel(root, { getHandle, putHandle, send, onStatus, sta
     root.append(row(el("label", {}, "Check every: ", sel)));
     if (confirmUnlink) {
       root.append(
-        el("p", { className: "err", textContent: "Unlink this folder? Snippets and folder files stay as they are. Snippets deleted on either side since the last sync come back if you link again." }),
+        el("p", { className: "err", textContent: unlinkText(st) }),
         row(btn("Cancel", () => { confirmUnlink = false; render(); }), btn("Unlink", async () => { confirmUnlink = false; await send({ type: "sync-unlink" }); })),
       );
     } else {
