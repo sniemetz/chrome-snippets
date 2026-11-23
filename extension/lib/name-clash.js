@@ -7,3 +7,13 @@ export function decideClash(a, b, takenNames) {
   while (takenNames.has(`${hi.name} (${n})`.toLowerCase())) n++;
   return { kind: "rename", id: hi.id, newName: `${hi.name} (${n})` };
 }
+
+// Name for a new snippet: the trimmed name if free (case-insensitive), else "Name (2)", "Name (3)", ... first free.
+export function freeName(name, existingNames) {
+  const taken = new Set(existingNames.map((n) => n.toLowerCase()));
+  const base = String(name ?? "").trim();
+  if (!taken.has(base.toLowerCase())) return base;
+  let n = 2;
+  while (taken.has(`${base} (${n})`.toLowerCase())) n++;
+  return `${base} (${n})`;
+}

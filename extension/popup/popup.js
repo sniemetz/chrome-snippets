@@ -1,5 +1,6 @@
 import { createStore, StoreError } from "../lib/store.js";
 import { allTags, normalizeTags, suggestTags } from "../lib/tags.js";
+import { freeName } from "../lib/name-clash.js";
 import { formsEqual } from "../lib/dirty.js";
 import { largeWarning } from "../lib/limits.js";
 import { classifyExternalChange } from "../lib/editor-sync.js";
@@ -42,6 +43,7 @@ function cancelConfirm() {
   $("footConfirm").hidden = true;
 }
 function askConfirm(text, noLabel, yesLabel, onYes, onNo) {
+  $("confirmYes").classList.toggle("cancel", yesLabel === "Discard"); // Discard stays plain
   $("confirmText").textContent = text;
   $("confirmNo").textContent = noLabel;
   $("confirmYes").textContent = yesLabel;
@@ -141,6 +143,7 @@ function showNotice(text) {
 }
 function setEditor(m, snippet, { content = "" } = {}) {
   cancelConfirm();
+  setDeleteArmed(false);
   $("tagsPanel").hidden = true;
   $("syncPanel").hidden = true;
   $("editorNotice").hidden = true;
@@ -187,7 +190,7 @@ $("list").addEventListener("click", (e) => {
     setEditor("edit", s);
   });
 });
-$("newBtn").onclick = () => guardUnsaved(() => { dropQueued(); endAddMode(); setEditor("new", null); $("name").focus(); });
+$("newBtn").onclick = () => deleteArmed ? setDeleteArmed(false) : guardUnsaved(() => { dropQueued(); endAddMode(); setEditor("new", null); $("name").focus(); });
 $("search").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(() => renderList(), 200); });
 $("tagFilter").addEventListener("change", () => renderList());
 $("closeBtn").onclick = () => guardUnsaved(() => { queued = null; window.close(); });
@@ -256,6 +259,51 @@ $("tagInput").addEventListener("keydown", (e) => {
 });
 $("tagInput").addEventListener("change", () => { if (!intoList) commitTagInput(); });
 $("editor").addEventListener("submit", (e) => e.preventDefault());
+
+// Live name check for a NEW snippet (Save still reports the same error).
+$("name").addEventListener("input", () => {
+  if (mode !== "new") return;
+  const n = $("name").value.trim().toLowerCase();
+  const taken = n && metas.some((m) => m.name.toLowerCase() === n);
+  $("nameErr").textContent = "A snippet with this name exists";
+  $("nameErr").hidden = !taken;
+});
+
+// Draft keeping: a NEW entry with a name and content is saved (by the service worker) when focus is lost (toolbar popup) or the page
+// closes (both views). A taken name gets " (2)". Without name or content it is dropped. Edits of existing
+// snippets are never auto-saved.
+let autosaving = false;
+async function autosaveDraft() {
+  if (mode !== "new" || autosaving) return;
+  const f = readForm();
+  if (!f.name.trim() || !f.content.trim()) return;
+  autosaving = true;
+  selfWriting = true;
+  try {
+    // One message: the service worker does the write, so it completes even if this page is destroyed right now.
+    const res = await chrome.runtime.sendMessage({ type: "draft-save", draft: f });
+    if (!res?.ok) return;
+    await reload();
+    endAddMode();
+    setEditor("edit", res.snippet);
+    showStatus(`Saved automatically: ${res.snippet.name}`);
+  } catch (err) {
+    console.warn("Autosave failed:", err?.message ?? err);
+  } finally {
+    selfWriting = false;
+    autosaving = false;
+  }
+}
+if (view === "toolbar") window.addEventListener("blur", autosaveDraft);
+window.addEventListener("pagehide", autosaveDraft);
+async function showAutosaveNotice() {
+  try {
+    const { autosaved } = await chrome.storage.session.get("autosaved");
+    if (!autosaved) return;
+    await chrome.storage.session.remove("autosaved");
+    showStatus(`Saved automatically: ${autosaved}`);
+  } catch { /* no notice */ }
+}
 $("copyLink").addEventListener("click", (e) => {
   e.preventDefault();
   const text = $("content").value;
@@ -315,20 +363,31 @@ async function doSave(confirmedLarge) {
     selfWriting = false;
   }
 }
-$("deleteBtn").onclick = () => {
-  askConfirm("Delete this snippet?", "Cancel", "Delete", async () => {
-    selfWriting = true;
-    try {
-      await store.remove(selectedId);
-      await reload();
-    } finally {
-      selfWriting = false;
-    }
-    if (queued !== null) { startAdd(); return; }
-    endAddMode();
-    setEditor("none", null);
-  });
+// Delete is confirmed in place: New turns into Cancel and Delete into "Really?". Any other interaction disarms it.
+let deleteArmed = false;
+function setDeleteArmed(on) {
+  deleteArmed = on;
+  $("newBtn").textContent = on ? "Cancel" : "New";
+  $("newBtn").classList.toggle("cancel", on);
+  $("deleteBtn").textContent = on ? "Really?" : "Delete";
+}
+$("deleteBtn").onclick = async () => {
+  if (!deleteArmed) { setDeleteArmed(true); return; }
+  setDeleteArmed(false);
+  selfWriting = true;
+  try {
+    await store.remove(selectedId);
+    await reload();
+  } finally {
+    selfWriting = false;
+  }
+  if (queued !== null) { startAdd(); return; }
+  endAddMode();
+  setEditor("none", null);
 };
+document.addEventListener("click", (e) => { if (deleteArmed && e.target !== $("deleteBtn") && e.target !== $("newBtn")) setDeleteArmed(false); }, true);
+document.addEventListener("keydown", (e) => { if (deleteArmed && e.key === "Escape") setDeleteArmed(false); });
+$("editor").addEventListener("input", () => setDeleteArmed(false));
 // ---------- "Add as snippet" ----------
 function endAddMode() {
   addMode = false;
@@ -432,6 +491,7 @@ async function mountSyncGate() {
 
 // ---------- boot ----------
 await reload();
+await showAutosaveNotice();
 setEditor("none", null); // both views edit; the list holds metadata only, content loads per snippet
 if (view === "toolbar") await mountSyncGate();
 if (view === "window") {

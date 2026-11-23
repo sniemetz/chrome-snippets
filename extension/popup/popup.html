@@ -10,7 +10,7 @@
   <h1 id="title">Snippets</h1>
   <input id="search" type="search" placeholder="Search" autocomplete="off">
   <select id="tagFilter" aria-label="Filter by tag"><option value="">All tags</option></select>
-  <button id="closeBtn" type="button">Close</button>
+  <button id="closeBtn" class="cancel" type="button">Close</button>
 </header>
 <div id="status" class="status" role="status" hidden></div>
 <div id="syncGate" class="gate" hidden></div>
@@ -50,7 +50,7 @@
   <div class="row"><div id="dataMount"></div><button id="tagsBtn" type="button">Tags</button><button id="syncBtn" type="button">Sync</button><button id="openMgrBtn" type="button">Open manager</button></div>
   <div id="footConfirm" class="row confirm" hidden>
     <span id="confirmText"></span>
-    <button id="confirmNo" type="button"></button>
+    <button id="confirmNo" class="cancel" type="button"></button>
     <button id="confirmYes" type="button"></button>
   </div>
 </footer>

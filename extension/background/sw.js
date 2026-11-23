@@ -3,6 +3,7 @@ import { openPalette } from "../lib/overlay.js";
 import { handleMessage } from "../lib/messages.js";
 import { originPattern, isPermissionError } from "../lib/paste-target.js";
 import { centeredPosition } from "../lib/position.js";
+import { freeName } from "../lib/name-clash.js";
 import { createSyncState, INTERVALS } from "../lib/sync-state.js";
 import { createDropbox } from "../lib/dropbox.js";
 import { createDropboxAuth, makePkce, buildAuthUrl } from "../lib/dropbox-auth.js";
@@ -304,6 +305,17 @@ async function openManager(panel) {
   await chrome.storage.session.set({ windowId: win.id });
 }
 
+// A new entry with a name and content is saved as a snippet; a taken name becomes "Name (2)".
+async function saveDraft(d) {
+  const name = String(d?.name ?? "").trim();
+  const content = String(d?.content ?? "");
+  if (!name || !content.trim()) return { ok: false };
+  const metas = await store.listMeta();
+  const saved = await store.add({ name: freeName(name, metas.map((m) => m.name)), content, tags: Array.isArray(d.tags) ? d.tags : [] });
+  await chrome.storage.session.set({ autosaved: saved.name });
+  return { ok: true, snippet: saved };
+}
+
 chrome.windows.onRemoved.addListener(async (id) => {
   const { windowId } = await chrome.storage.session.get("windowId");
   if (windowId === id) await chrome.storage.session.remove("windowId");
@@ -336,6 +348,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // Sync control comes from extension pages only (the palette runs inside web pages).
     if (!sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
     handleSyncMessage(msg).then(sendResponse, () => sendResponse({ ok: false }));
+    return true;
+  }
+  if (msg && msg.type === "draft-save") {
+    // Sent by the manager/toolbar page as it closes or loses focus; the worker outlives the page, so the write finishes.
+    if (!sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
+    saveDraft(msg.draft).then(sendResponse, () => sendResponse({ ok: false }));
     return true;
   }
   if (msg && msg.type === "open-manager") {

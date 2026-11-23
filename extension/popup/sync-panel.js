@@ -111,7 +111,7 @@ export function mountSyncPanel(root, { send, onStatus, state = createSyncState()
     if (focusCode) { focusCode = false; setTimeout(() => input.focus(), 0); }
     input.className = "codeinput";
     return el("div", { className: "coderow" }, input,
-      row(btn("Connect", connectDropbox, { className: "primary", disabled: signingIn }), btn("Cancel", cancelCode, { disabled: signingIn })));
+      row(btn("Connect", connectDropbox, { className: "primary", disabled: signingIn }), btn("Cancel", cancelCode, { className: "cancel", disabled: signingIn })));
   }
 
   async function syncNow() {
@@ -147,7 +147,7 @@ export function mountSyncPanel(root, { send, onStatus, state = createSyncState()
         row(
           btn("Dropbox wins", () => send({ type: "sync-decide", choice: "folder" })),
           btn("This device wins", () => send({ type: "sync-decide", choice: "local" })),
-          ...(withCancel ? [btn("Cancel", () => { send({ type: "sync-decide", choice: "cancel" }); decisionDismissed = true; render(); })] : []),
+          ...(withCancel ? [btn("Cancel", () => { send({ type: "sync-decide", choice: "cancel" }); decisionDismissed = true; render(); }, { className: "cancel" })] : []),
         ),
       );
     }
@@ -200,10 +200,10 @@ export function mountSyncPanel(root, { send, onStatus, state = createSyncState()
     if (confirmUnlink) {
       root.append(
         el("p", { className: "err", textContent: unlinkText(st) }),
-        row(btn("Cancel", () => { confirmUnlink = false; render(); }), btn("Unlink", async () => { confirmUnlink = false; await send({ type: "sync-unlink" }); }, { disabled: unlinkDisabled(busy) })),
+        row(btn("Cancel", () => { confirmUnlink = false; render(); }, { className: "cancel" }), btn("Unlink", async () => { confirmUnlink = false; await send({ type: "sync-unlink" }); }, { className: "cancel", disabled: unlinkDisabled(busy) })),
       );
     } else {
-      root.append(row(btn("Unlink", () => { confirmUnlink = true; render(); }, { disabled: unlinkDisabled(busy) })));
+      root.append(row(btn("Unlink", () => { confirmUnlink = true; render(); }, { className: "cancel", disabled: unlinkDisabled(busy) })));
     }
   }
 

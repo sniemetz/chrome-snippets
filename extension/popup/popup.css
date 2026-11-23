@@ -20,9 +20,10 @@ body {
   font: 13px system-ui, sans-serif;
 }
 button, input, select, textarea { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; }
-button { padding: 4px 12px; cursor: pointer; border-radius: 12px; }
+button { padding: 4px 12px; cursor: pointer; border-radius: 12px; background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 button:disabled { opacity: .5; cursor: default; }
-button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+/* All buttons are blue; cancel-type buttons, Discard, Unlink, list Copy, dropdown items and chip crosses stay plain. */
+button.cancel, .list .copybtn, .menu button, .chip button { background: var(--bg); color: var(--fg); border-color: var(--border); }
 .bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; flex: none; height: 44px; }
 .bar h1 { font-size: 14px; margin: 0; flex: none; }
 .bar #search { flex: 1; min-width: 0; padding: 4px 6px; }
@@ -77,6 +78,8 @@ body[data-view="toolbar"] #dataMount,
 body[data-view="toolbar"] #tagsBtn,
 body[data-view="toolbar"] #syncBtn { display: none; }
 body[data-view="window"] #openMgrBtn { display: none; }
+body[data-view="window"] { height: 100vh; min-height: 445px; } /* manager fills its window height */
+body[data-view="window"] .foot { height: 52px; padding-top: 16px; } /* gap between the panels and the footer buttons */
 
 .tagspanel { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; flex: 1; }
 .tagspanel[hidden] { display: none; }

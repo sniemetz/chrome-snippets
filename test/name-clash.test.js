@@ -23,3 +23,10 @@ test("(2) taken: next free number, case-insensitive", () => {
   const r2 = decideClash(x, y, new Set(["email signature (2)"].map((s) => s.toLowerCase())));
   assert.equal(r2.newName, "Email signature (3)");
 });
+
+import { freeName } from "../extension/lib/name-clash.js";
+test("freeName: free name kept (trimmed), taken name gets the first free (n), case-insensitive", () => {
+  assert.equal(freeName("  New ", ["Other"]), "New");
+  assert.equal(freeName("Sig", ["sig"]), "Sig (2)");
+  assert.equal(freeName("Sig", ["Sig", "sig (2)", "Sig (3)"]), "Sig (4)");
+});

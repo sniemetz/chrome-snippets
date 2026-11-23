@@ -9,7 +9,7 @@ export function mountTagsPanel(root, store, { onChanged }) {
     e.append(...kids);
     return e;
   };
-  const btn = (label, onclick) => el("button", { type: "button", textContent: label, onclick });
+  const btn = (label, onclick, props = {}) => el("button", { type: "button", textContent: label, onclick, ...props });
   const plural = (n) => `${n} snippet${n === 1 ? "" : "s"}`;
 
   async function changed() {
@@ -31,7 +31,7 @@ export function mountTagsPanel(root, store, { onChanged }) {
       }
     });
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") save.click(); if (e.key === "Escape") render(); });
-    li.replaceChildren(input, save, btn("Cancel", render), err);
+    li.replaceChildren(input, save, btn("Cancel", render, { className: "cancel" }), err);
     input.focus();
     input.select();
   }
@@ -39,7 +39,7 @@ export function mountTagsPanel(root, store, { onChanged }) {
   function deleteRow(li, { tag, count }) {
     li.replaceChildren(
       el("span", { className: "tname", textContent: `Delete "${tag}" from ${plural(count)}?` }),
-      btn("Cancel", render),
+      btn("Cancel", render, { className: "cancel" }),
       btn("Delete", async () => { await store.deleteTag(tag); await changed(); }),
     );
   }
