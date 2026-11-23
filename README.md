@@ -23,6 +23,10 @@ Chrome extension (Manifest V3). Save, search, and paste text snippets.
 - Right-click in an editable field inside an iframe from another site (for example Workfront inside a wrapper page): Paste snippet opens the palette on the top page and copies the snippet; press Ctrl+V. For direct insertion right-click inside that iframe and use **Allow Snippets on this site** once (the item appears only inside iframes) (Chrome asks for permission for that site only). Remove it at `chrome://extensions` > ChromeSnippets > Details > Site access.
 - Right-click on selected text: **Add as snippet**.
 - A `!` on the toolbar icon for 3 seconds means the action failed on this page.
+- **Auto-save of new snippets:** a new entry with a name and content is saved when the toolbar popup loses focus, or when the manager window closes. A taken name becomes `Name (2)` (or the next free number) and "Saved automatically" shows. Entries without a name or content are dropped. Edits to existing snippets are never auto-saved.
+- **Name check:** the name of a new snippet is checked while you type ("A snippet with this name exists").
+- **Delete** asks in place: **New** becomes **Cancel** and **Delete** becomes **Really?**. It reverts on Esc, on clicking elsewhere, or when you edit.
+- **Tag suggestions:** matching existing tags appear while you type in the tag field. Tab or Down moves into the list, Up/Down move through it, Enter adds the tag, Esc closes the list.
 
 ## Sync between devices
 
